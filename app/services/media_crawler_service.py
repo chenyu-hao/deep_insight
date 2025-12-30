@@ -93,8 +93,8 @@ class MediaCrawlerService:
                     # No cookie available, will need QR code login
                     # But we'll set a shorter timeout for login
                     mc_config.LOGIN_TYPE = "qrcode"  # Will show QR code for manual login
-                    print(f"[INFO] Bilibili requires login. Browser will open for QR code login.")
-                    print(f"[INFO] Please scan the QR code within 2 minutes, or configure COOKIES to skip login.")
+                    print(f"[信息] B站需要登录。浏览器将打开以扫描二维码登录。")
+                    print(f"[信息] 请在2分钟内扫描二维码，或配置COOKIES以跳过登录。")
             else:
                 mc_config.LOGIN_TYPE = "qrcode"  # Default to QR code login
             # Disable media download to speed up crawling
@@ -160,14 +160,14 @@ class MediaCrawlerService:
             
             # Get factory class
             if not hasattr(store_module, factory_class_name):
-                print(f"Warning: Factory class {factory_class_name} not found in {store_module_name}")
+                print(f"警告: 在 {store_module_name} 中未找到工厂类 {factory_class_name}")
                 return None
             
             factory_class = getattr(store_module, factory_class_name)
             
             # Save original create_store method
             if not hasattr(factory_class, "create_store"):
-                print(f"Warning: create_store method not found in {factory_class_name}")
+                print(f"警告: 在 {factory_class_name} 中未找到 create_store 方法")
                 return None
             
             original_create = factory_class.create_store
@@ -182,7 +182,7 @@ class MediaCrawlerService:
             return original_create
             
         except Exception as e:
-            print(f"Warning: Could not patch store for {platform}: {e}")
+            print(f"警告: 无法为平台 {platform} 修补存储: {e}")
             import traceback
             traceback.print_exc()
         
@@ -239,17 +239,17 @@ class MediaCrawlerService:
                     if normalized_platform == "bili":
                         # Bilibili login can take a long time, increase effective timeout
                         # But also add a shorter timeout for the login check itself
-                        print(f"[INFO] Starting Bilibili crawler (timeout: {timeout}s)")
-                        print(f"[NOTE] If login is required, please scan QR code in the browser window")
-                        print(f"[NOTE] Login has a 10-minute timeout. If you don't login, it will fail.")
+                        print(f"[信息] 正在启动B站爬虫 (超时时间: {timeout}秒)")
+                        print(f"[提示] 如需登录，请在浏览器窗口中扫描二维码")
+                        print(f"[提示] 登录超时时间为10分钟。如果不登录，将会失败。")
                     # Run with timeout
                     await asyncio.wait_for(crawler.start(), timeout=timeout)
                 except asyncio.TimeoutError:
-                    print(f"[WARNING] Crawler timeout for {platform} after {timeout}s")
+                    print(f"[警告] 平台 {platform} 爬取超时，已等待 {timeout} 秒")
                     if normalized_platform == "bili":
-                        print(f"[INFO] Bilibili login might have timed out. Try using cookie login instead.")
+                        print(f"[信息] B站登录可能已超时。请尝试使用cookie登录方式。")
                 except Exception as e:
-                    print(f"[WARNING] Crawler error for {platform}: {e}")
+                    print(f"[警告] 平台 {platform} 爬取出错: {e}")
                     import traceback
                     traceback.print_exc()
                 
@@ -278,7 +278,7 @@ class MediaCrawlerService:
             
         except Exception as e:
             error_msg = str(e).encode('ascii', 'ignore').decode('ascii')  # Remove non-ASCII chars for Windows
-            print(f"[ERROR] Error crawling {platform}: {error_msg}")
+            print(f"[错误] 爬取平台 {platform} 时出错: {error_msg}")
             import traceback
             try:
                 traceback.print_exc()
@@ -376,7 +376,7 @@ class MediaCrawlerService:
         result_dict = {}
         for result in results:
             if isinstance(result, Exception):
-                print(f"[ERROR] Platform crawl failed: {result}")
+                print(f"[错误] 平台爬取失败: {result}")
                 continue
             platform, items = result
             result_dict[platform] = items
