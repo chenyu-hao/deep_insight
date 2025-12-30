@@ -30,7 +30,7 @@ def get_llm(provider: str, model_name: str):
         # Rotate API Key
         current_key = gemini_key_manager.get_next_key()
         
-        print(f"妫ｅ啯鏁� Using Gemini Key: ...{current_key[-6:]}")
+        print(f"🔑 Using Gemini Key: ...{current_key[-6:]}")
         
         return ChatGoogleGenerativeAI(
             model=model_name,
@@ -41,7 +41,7 @@ def get_llm(provider: str, model_name: str):
         
     elif provider == "moonshot":
         current_key = moonshot_key_manager.get_next_key()
-        print(f"妫ｅ啯鏁� Using Moonshot Key: ...{current_key[-6:]}")
+        print(f"🔑 Using Moonshot Key: ...{current_key[-6:]}")
         return ChatOpenAI(
             model=model_name,
             temperature=0.7,
@@ -58,7 +58,7 @@ def get_llm(provider: str, model_name: str):
 
     elif provider == "deepseek":
         current_key = deepseek_key_manager.get_next_key()
-        print(f"妫ｅ啯鏁� Using DeepSeek Key: ...{current_key[-6:]}")
+        print(f"🔑 Using DeepSeek Key: ...{current_key[-6:]}")
         return ChatOpenAI(
             model=model_name,
             temperature=0.7,
@@ -68,7 +68,7 @@ def get_llm(provider: str, model_name: str):
 
     elif provider == "doubao":
         current_key = doubao_key_manager.get_next_key()
-        print(f"妫ｅ啯鏁� Using Doubao Key: ...{current_key[-6:]}")
+        print(f"🔑 Using Doubao Key: ...{current_key[-6:]}")
         return ChatOpenAI(
             model=model_name,
             temperature=0.7,
@@ -78,7 +78,7 @@ def get_llm(provider: str, model_name: str):
 
     elif provider == "zhipu":
         current_key = zhipu_key_manager.get_next_key()
-        print(f"妫ｅ啯鏁� Using Zhipu Key: ...{current_key[-6:]}")
+        print(f"🔑 Using Zhipu Key: ...{current_key[-6:]}")
         return ChatOpenAI(
             model=model_name,
             temperature=0.7,
