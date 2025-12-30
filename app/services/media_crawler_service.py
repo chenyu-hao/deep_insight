@@ -74,17 +74,21 @@ class MediaCrawlerService:
             mc_config.CRAWLER_MAX_NOTES_COUNT = max_items
             mc_config.CRAWLER_TYPE = "search"
             # For platforms that require login, use non-headless mode
-            # Bilibili and Weibo need visible browser for login
-            if normalized_platform in ["wb", "bili"]:
+            # All major platforms need visible browser for login (wb, bili, xhs, tieba, dy, ks, zhihu)
+            if normalized_platform in ["wb", "bili", "xhs", "tieba", "dy", "ks", "zhihu"]:
                 mc_config.HEADLESS = False  # Need visible browser for login
                 mc_config.CDP_HEADLESS = False
+                # Disable CDP mode for login-required platforms to ensure visible browser
+                # CDP mode has issues with headless=False parameter passing
+                mc_config.ENABLE_CDP_MODE = False
+                print(f"[配置] 平台 {normalized_platform} 需要登录，使用标准浏览器模式（非CDP），HEADLESS=False")
             else:
                 mc_config.HEADLESS = True  # Other platforms can use headless
                 mc_config.CDP_HEADLESS = True
-            mc_config.ENABLE_CDP_MODE = True  # Use CDP mode for better stability
+                mc_config.ENABLE_CDP_MODE = True  # Use CDP mode for better stability
             mc_config.SAVE_DATA_OPTION = "json"  # We'll intercept store calls
             # Set login type - use cookie if available, otherwise qrcode
-            # For Bilibili, prefer cookie login to avoid manual QR code scanning
+            # For Bilibili and Weibo, prefer cookie login to avoid manual QR code scanning
             if normalized_platform == "bili":
                 # Try cookie login first if cookies are available
                 if mc_config.COOKIES and mc_config.COOKIES.strip():
@@ -95,6 +99,25 @@ class MediaCrawlerService:
                     mc_config.LOGIN_TYPE = "qrcode"  # Will show QR code for manual login
                     print(f"[信息] B站需要登录。浏览器将打开以扫描二维码登录。")
                     print(f"[信息] 请在2分钟内扫描二维码，或配置COOKIES以跳过登录。")
+            elif normalized_platform == "wb":
+                # Weibo also supports cookie login
+                if mc_config.COOKIES and mc_config.COOKIES.strip():
+                    mc_config.LOGIN_TYPE = "cookie"  # Use saved cookies
+                else:
+                    # No cookie available, will need QR code login
+                    mc_config.LOGIN_TYPE = "qrcode"  # Will show QR code for manual login
+                    print(f"[信息] 微博需要登录。浏览器将打开以扫描二维码登录。")
+                    print(f"[信息] 请在2分钟内扫描二维码，或配置COOKIES以跳过登录。")
+            elif normalized_platform in ["xhs", "tieba", "dy", "ks", "zhihu"]:
+                # Other platforms also need login
+                if mc_config.COOKIES and mc_config.COOKIES.strip():
+                    mc_config.LOGIN_TYPE = "cookie"
+                else:
+                    mc_config.LOGIN_TYPE = "qrcode"
+                    platform_names = {"xhs": "小红书", "tieba": "贴吧", "dy": "抖音", "ks": "快手", "zhihu": "知乎"}
+                    platform_cn = platform_names.get(normalized_platform, normalized_platform)
+                    print(f"[信息] {platform_cn}需要登录。浏览器将打开以扫描二维码登录。")
+                    print(f"[信息] 请在浏览器窗口中扫描二维码，或配置COOKIES以跳过登录。")
             else:
                 mc_config.LOGIN_TYPE = "qrcode"  # Default to QR code login
             # Disable media download to speed up crawling
@@ -233,21 +256,46 @@ class MediaCrawlerService:
                 # Create crawler instance
                 crawler = CrawlerFactory.create_crawler(normalized_platform)
                 
+                # Force re-check configuration after crawler creation for login-required platforms
+                # This is needed because MediaCrawler might cache config during import
+                if normalized_platform in ["wb", "bili", "xhs", "tieba", "dy", "ks", "zhihu"]:
+                    import config as mc_config
+                    print(f"[诊断] 爬虫创建后检查配置: ENABLE_CDP_MODE={mc_config.ENABLE_CDP_MODE}, HEADLESS={mc_config.HEADLESS}")
+                
                 # Start crawler (this will call search internally)
                 try:
-                    # For Bilibili, we might need to handle login timeout differently
+                    # For Bilibili and Weibo, we might need to handle login timeout differently
                     if normalized_platform == "bili":
                         # Bilibili login can take a long time, increase effective timeout
                         # But also add a shorter timeout for the login check itself
                         print(f"[信息] 正在启动B站爬虫 (超时时间: {timeout}秒)")
                         print(f"[提示] 如需登录，请在浏览器窗口中扫描二维码")
                         print(f"[提示] 登录超时时间为10分钟。如果不登录，将会失败。")
+                    elif normalized_platform == "wb":
+                        # Weibo also requires login
+                        print(f"[信息] 正在启动微博爬虫 (超时时间: {timeout}秒)")
+                        print(f"[提示] 浏览器将首先打开微博首页，请稍候...")
+                        print(f"[提示] 如果浏览器长时间停在空白页面，可能是网络问题，请检查网络连接")
+                        print(f"[提示] 如需登录，会自动跳转到登录页面，请在浏览器窗口中扫描二维码")
+                        print(f"[提示] 登录超时时间为10分钟。如果不登录，将会失败。")
+                    elif normalized_platform in ["xhs", "tieba", "dy", "ks", "zhihu"]:
+                        # Other platforms also require login
+                        platform_names = {"xhs": "小红书", "tieba": "贴吧", "dy": "抖音", "ks": "快手", "zhihu": "知乎"}
+                        platform_cn = platform_names.get(normalized_platform, normalized_platform)
+                        print(f"[信息] 正在启动{platform_cn}爬虫 (总超时时间: {timeout}秒)")
+                        print(f"[提示] 请在浏览器窗口中扫描二维码登录")
+                        print(f"[提示] 登录等待时间最长10分钟，请尽快完成登录。")
+                    
                     # Run with timeout
                     await asyncio.wait_for(crawler.start(), timeout=timeout)
                 except asyncio.TimeoutError:
                     print(f"[警告] 平台 {platform} 爬取超时，已等待 {timeout} 秒")
                     if normalized_platform == "bili":
                         print(f"[信息] B站登录可能已超时。请尝试使用cookie登录方式。")
+                    elif normalized_platform in ["wb", "xhs", "tieba", "dy", "ks", "zhihu"]:
+                        platform_names = {"wb": "微博", "xhs": "小红书", "tieba": "贴吧", "dy": "抖音", "ks": "快手", "zhihu": "知乎"}
+                        platform_cn = platform_names.get(normalized_platform, normalized_platform)
+                        print(f"[信息] {platform_cn}登录可能已超时。请尝试使用cookie登录方式。")
                 except Exception as e:
                     print(f"[警告] 平台 {platform} 爬取出错: {e}")
                     import traceback

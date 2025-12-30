@@ -109,15 +109,17 @@ async def crawler_agent_node(state: GraphState):
         valid_platforms = ["xhs", "dy", "bili"]  # Default to most common platforms
     
     print(f"[CRAWLER] Crawling topic '{topic}' on platforms: {valid_platforms}")
+    print(f"[模式] 使用串行模式爬取，避免配置冲突")
     
-    # Crawl all platforms concurrently
+    # Crawl platforms serially to avoid config conflicts
+    # Note: Will be upgraded to Agent architecture in the future
     try:
         platform_data = await crawler_service.crawl_multiple_platforms(
             platforms=valid_platforms,
             keywords=topic,
             max_items_per_platform=15,  # Limit per platform to avoid timeout
             timeout_per_platform=180,  # 3 minutes per platform
-            max_concurrent=2  # Limit concurrent crawlers to avoid resource exhaustion
+            max_concurrent=1  # Serial execution to avoid MediaCrawler config conflicts
         )
         
         # Flatten all platform data into single list
