@@ -9,10 +9,17 @@ router = APIRouter()
 
 @router.post("/analyze")
 async def analyze_news(request: NewsRequest):
-    print(f"📥 Received request: Topic='{request.topic}', URLs={request.urls}")
+    print(f"[IN] Received request: Topic='{request.topic}', URLs={request.urls}, Platforms={request.platforms}")
     async def event_generator():
         # Initial input for the graph
-        initial_state = {"urls": request.urls, "topic": request.topic, "messages": []}
+        initial_state = {
+            "urls": request.urls, 
+            "topic": request.topic, 
+            "platforms": request.platforms or [],
+            "messages": [],
+            "crawler_data": [],
+            "platform_data": {}
+        }
         
         # Stream the graph execution
         # LangGraph stream yields (node_name, state_update)

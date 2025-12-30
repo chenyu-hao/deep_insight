@@ -5,8 +5,9 @@ import time
 
 url = "http://127.0.0.1:8000/api/analyze"
 data = {
-    "urls": ["https://www.example.com/news/article1"],
-    "topic": "Test Topic: 中国是不是发达国家？"
+    "urls": [], 
+    "topic": "AI是否会取代软件工程师？",
+    "platforms": ["bili"]
 }
 
 print(f"Connecting to {url}...")

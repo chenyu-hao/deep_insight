@@ -4,18 +4,22 @@ from app.config import settings
 import os
 from itertools import cycle
 
-class GeminiKeyManager:
+class KeyManager:
     def __init__(self, keys):
-        self.keys = keys
-        self.key_cycle = cycle(keys)
+        self.keys = [k for k in keys if k]
+        self.key_cycle = cycle(self.keys) if self.keys else None
 
     def get_next_key(self):
-        if not self.keys:
-            raise ValueError("No Gemini API keys configured.")
+        if not self.key_cycle:
+            raise ValueError("No API keys configured for this provider.")
         return next(self.key_cycle)
 
-# Initialize key manager
-gemini_key_manager = GeminiKeyManager(settings.GEMINI_API_KEYS)
+# Initialize key managers
+gemini_key_manager = KeyManager(settings.GEMINI_API_KEYS)
+moonshot_key_manager = KeyManager(settings.MOONSHOT_API_KEYS)
+deepseek_key_manager = KeyManager(settings.DEEPSEEK_API_KEYS)
+doubao_key_manager = KeyManager(settings.DOUBAO_API_KEYS)
+zhipu_key_manager = KeyManager(settings.ZHIPU_API_KEYS)
 
 def get_llm(provider: str, model_name: str):
     """
@@ -25,7 +29,7 @@ def get_llm(provider: str, model_name: str):
         # Rotate API Key
         current_key = gemini_key_manager.get_next_key()
         
-        print(f"🔄 Using Gemini Key: ...{current_key[-6:]}")
+        print(f"[INFO] Using Gemini Key: ...{current_key[-6:]}")
         
         return ChatGoogleGenerativeAI(
             model=model_name,
@@ -35,10 +39,12 @@ def get_llm(provider: str, model_name: str):
         )
         
     elif provider == "moonshot":
+        current_key = moonshot_key_manager.get_next_key()
+        print(f"[INFO] Using Moonshot Key: ...{current_key[-6:]}")
         return ChatOpenAI(
             model=model_name,
             temperature=0.7,
-            api_key=settings.MOONSHOT_API_KEY,
+            api_key=current_key,
             base_url=settings.MOONSHOT_BASE_URL
         )
 
@@ -47,6 +53,36 @@ def get_llm(provider: str, model_name: str):
             model=model_name,
             temperature=0.7,
             api_key=settings.OPENAI_API_KEY
+        )
+
+    elif provider == "deepseek":
+        current_key = deepseek_key_manager.get_next_key()
+        print(f"[INFO] Using DeepSeek Key: ...{current_key[-6:]}")
+        return ChatOpenAI(
+            model=model_name,
+            temperature=0.7,
+            api_key=current_key,
+            base_url=settings.DEEPSEEK_BASE_URL
+        )
+
+    elif provider == "doubao":
+        current_key = doubao_key_manager.get_next_key()
+        print(f"[INFO] Using Doubao Key: ...{current_key[-6:]}")
+        return ChatOpenAI(
+            model=model_name,
+            temperature=0.7,
+            api_key=current_key,
+            base_url=settings.DOUBAO_BASE_URL
+        )
+
+    elif provider == "zhipu":
+        current_key = zhipu_key_manager.get_next_key()
+        print(f"[INFO] Using Zhipu Key: ...{current_key[-6:]}")
+        return ChatOpenAI(
+            model=model_name,
+            temperature=0.7,
+            api_key=current_key,
+            base_url=settings.ZHIPU_BASE_URL
         )
     
     else:

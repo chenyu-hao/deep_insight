@@ -1,0 +1,11 @@
+2025/12/30-14:17:09.097 6350 Creating DB D:\For Study\Project\AgentPro\browser_data\bili_user_data_dir\Default\Local Storage\leveldb since it was missing.
+2025/12/30-14:17:09.399 6350 Reusing MANIFEST D:\For Study\Project\AgentPro\browser_data\bili_user_data_dir\Default\Local Storage\leveldb/MANIFEST-000001
+2025/12/30-14:17:09.400 6350 Recovering log #18
+2025/12/30-14:17:09.401 6350 Reusing old log D:\For Study\Project\AgentPro\browser_data\bili_user_data_dir\Default\Local Storage\leveldb/000018.log 
+2025/12/30-14:17:09.401 6350 Delete type=2 #20
+2025/12/30-14:18:09.409 5b24 Level-0 table #20: started
+2025/12/30-14:18:09.416 5b24 Level-0 table #20: 19099 bytes OK
+2025/12/30-14:18:09.417 5b24 Delete type=0 #18
+2025/12/30-14:18:33.464 5b24 Level-0 table #22: started
+2025/12/30-14:18:33.467 5b24 Level-0 table #22: 32327 bytes OK
+2025/12/30-14:18:33.468 5b24 Delete type=0 #19
