@@ -6,8 +6,8 @@ from langgraph.graph import StateGraph, END
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.llm import get_agent_llm
 from app.config import settings
-from app.services.crawler import UnifiedCrawler
-from app.services.mock_crawler import MockCrawler
+
+from app.services.media_crawler_service import crawler_service
 
 # --- Helper Function ---
 def extract_text_content(content: Any) -> str:
@@ -33,23 +33,26 @@ def extract_text_content(content: Any) -> str:
 class GraphState(TypedDict):
     urls: List[str]
     topic: str
-    platforms: List[str] # Added platforms
-    news_content: Optional[str]
-    initial_analysis: Optional[str]
+    platforms: List[str]  # Platforms to crawl
+    crawler_data: List[Dict[str, Any]]  # Standardized crawled data
+    platform_data: Dict[str, List[Dict[str, Any]]]  # Data grouped by platform
+    news_content: str
+    initial_analysis: str
     critique: Optional[str]
     revision_count: int
-    final_copy: Optional[str]
+    final_copy: str
     messages: List[str] # Keep for SSE compatibility
     debate_history: List[str] # Track the debate process
-    next: str # The next node to execute
 
 # --- 2. LLM Setup ---
 # LLMs are now retrieved via get_agent_llm() inside nodes or globally if preferred.
+# We will instantiate them inside nodes to allow dynamic config changes if needed,
+# or just use the factory here.
 
 # --- 3. Prompts ---
 REPORTER_PROMPT = """
 你是一名资深新闻记者。
-你的任务是阅读提供的新闻内容（如果缺少内容，请根据主题模拟阅读），并提取核心事实。
+你的任务是阅读提供的新闻内容或社交媒体数据，并提取核心事实。
 重点关注：谁（Who）、什么（What）、何时（When）、何地（Where）、为什么（Why）。
 请用**中文**输出事实事件的简明摘要。
 """
@@ -72,8 +75,7 @@ DEBATER_PROMPT = """
 2. **脚踏实地**：不要产生新的话题或外部辩论的幻觉（例如，如果主题是“AI”，不要扯到“地平论”）。
 3. **反驳**：寻找逻辑谬误、来源中缺失的事实或过度概括。
 4. **裁决**：
-    * 尽量不要在第一轮就轻易通过。试着找出至少一个可以改进的角度。
-    * 只有当分析确实无懈可击且没有明显漏洞时，才回复 "PASS"。
+    * 如果分析稳固且没有重大问题，请仅回复 "PASS"。
     * 否则，请提供尖锐的**中文**反驳。
 """
 
@@ -89,140 +91,111 @@ WRITER_PROMPT = """
 - 请用**中文**撰写。
 """
 
-SUPERVISOR_PROMPT = """
-你是一个新闻分析团队的主管。
-你的团队成员有：
-1. reporter: 负责搜集新闻事实。
-2. analyst: 负责分析新闻事实，产出深度观点。
-3. debater: 负责反驳分析师的观点，指出漏洞。
-4. writer: 负责将最终分析转化为小红书文案。
-
-当前状态：
-- 新闻内容 (news_content): {has_news}
-- 初步分析 (initial_analysis): {has_analysis}
-- 反驳意见 (critique): {has_critique}
-- 修改次数 (revision_count): {revision_count} / {max_rounds}
-- 最终文案 (final_copy): {has_final_copy}
-
-决策规则：
-1. 如果没有新闻内容 (news_content 为 NO)，必须先调用 'reporter'。
-2. 如果有新闻内容 (YES) 但没有初步分析 (initial_analysis 为 NO)，调用 'analyst'。
-3. 如果有初步分析 (YES) 但没有反驳意见 (critique 为 NO)，调用 'debater'。
-4. 如果有反驳意见 (YES)：
-    - 如果反驳意见包含 "PASS" (代表分析通过)，调用 'writer'。
-    - 如果修改次数 (revision_count) 达到上限 {max_rounds}，调用 'writer'。
-    - 否则，调用 'analyst' 进行修改。
-5. 如果 writer 已经完成 (final_copy 为 YES)，回复 'FINISH'。
-
-请只输出下一个工人的名字（'reporter', 'analyst', 'debater', 'writer', 'FINISH'），不要输出其他内容。
-"""
-
 # --- 4. Node Functions ---
 
-async def supervisor_node(state: GraphState):
-    print("--- SUPERVISOR ---")
-    llm = get_agent_llm("supervisor")
+async def crawler_agent_node(state: GraphState):
+    """Crawler Agent: Crawls multiple platforms for the given topic"""
+    print("--- CRAWLER AGENT ---")
+    topic = state["topic"]
+    platforms = state.get("platforms", [])
     
-    # Debug state
-    news_len = len(state.get("news_content", "") or "")
-    print(f"[DEBUG] State Check: news_content length={news_len}")
+    # If no platforms specified, use all supported platforms
+    if not platforms:
+        platforms = ["xhs", "dy", "bili", "wb", "zhihu", "tieba", "ks"]
     
-    has_news = f"YES (Length: {len(state.get('news_content', ''))})" if state.get("news_content") else "NO"
-    has_analysis = "YES" if state.get("initial_analysis") else "NO"
-    has_critique = state.get("critique", "NO")
-    if has_critique and len(has_critique) > 50:
-        has_critique = "YES (Content exists)"
-    elif not has_critique:
-        has_critique = "NO"
+    # Filter out invalid platforms
+    valid_platforms = [p for p in platforms if p in crawler_service.PLATFORM_MAP.values()]
+    if not valid_platforms:
+        valid_platforms = ["xhs", "dy", "bili"]  # Default to most common platforms
+    
+    print(f"[CRAWLER] Crawling topic '{topic}' on platforms: {valid_platforms}")
+    
+    # Crawl all platforms concurrently
+    try:
+        platform_data = await crawler_service.crawl_multiple_platforms(
+            platforms=valid_platforms,
+            keywords=topic,
+            max_items_per_platform=15,  # Limit per platform to avoid timeout
+            timeout_per_platform=180,  # 3 minutes per platform
+            max_concurrent=2  # Limit concurrent crawlers to avoid resource exhaustion
+        )
         
-    has_final_copy = "YES" if state.get("final_copy") else "NO"
-    
-    prompt = SUPERVISOR_PROMPT.format(
-        has_news=has_news,
-        has_analysis=has_analysis,
-        has_critique=has_critique,
-        revision_count=state.get("revision_count", 0),
-        max_rounds=settings.DEBATE_MAX_ROUNDS,
-        has_final_copy=has_final_copy
-    )
-    
-    print(f"[DEBUG] Supervisor Prompt:\n{prompt}") 
-    
-    messages = [
-        SystemMessage(content=prompt),
-        HumanMessage(content="请决定下一步行动。")
-    ]
-    
-    response = await llm.ainvoke(messages)
-    next_step = extract_text_content(response.content).strip().replace("'", "").replace('"', "")
-    
-    # Fallback safety
-    valid_steps = ["reporter", "analyst", "debater", "writer", "FINISH"]
-    if next_step not in valid_steps:
-        print(f"[WARN] Supervisor returned invalid step: {next_step}. Defaulting based on rules.")
-        if not state.get("news_content"):
-            next_step = "reporter"
-        elif not state.get("initial_analysis"):
-            next_step = "analyst"
-        elif not state.get("critique"):
-            next_step = "debater"
-        else:
-            next_step = "writer"
-            
-    # --- GUARD RAILS ---
-    # Prevent infinite reporter loop
-    if next_step == "reporter" and state.get("news_content"):
-        print(f"[WARN] [GUARD] Supervisor chose 'reporter' but news_content exists. Overriding to 'analyst'.")
-        next_step = "analyst"
+        # Flatten all platform data into single list
+        all_data = []
+        for platform, items in platform_data.items():
+            all_data.extend(items)
         
-    # Prevent infinite analyst loop (if analysis exists but no critique yet)
-    if next_step == "analyst" and state.get("initial_analysis") and not state.get("critique"):
-        print(f"[WARN] [GUARD] Supervisor chose 'analyst' but initial_analysis exists. Overriding to 'debater'.")
-        next_step = "debater"
+        # Remove duplicates based on content_id
+        seen_ids = set()
+        unique_data = []
+        for item in all_data:
+            content_id = item.get("content_id", "")
+            if content_id and content_id not in seen_ids:
+                seen_ids.add(content_id)
+                unique_data.append(item)
         
-    # Prevent infinite writer loop
-    if state.get("final_copy"):
-        print(f"[INFO] [GUARD] Final copy exists. Forcing 'FINISH'.")
-        next_step = "FINISH"
-            
-    print(f"[INFO] Supervisor decided: {next_step}")
-    return {"next": next_step}
+        msg = f"Crawler Agent: Successfully crawled {len(unique_data)} unique items from {len(platform_data)} platforms."
+        if not unique_data:
+            msg = f"Crawler Agent: No data found for topic '{topic}' on any platform."
+        
+        print(f"[SUCCESS] Crawler completed: {len(unique_data)} items from {len(platform_data)} platforms")
+        
+        return {
+            "crawler_data": unique_data,
+            "platform_data": platform_data,
+            "messages": [msg]
+        }
+        
+    except Exception as e:
+        error_msg = f"Crawler Agent: Error during crawling - {str(e)}"
+        print(f"[ERROR] {error_msg}")
+        return {
+            "crawler_data": [],
+            "platform_data": {},
+            "messages": [error_msg]
+        }
 
 async def reporter_node(state: GraphState):
     print("--- REPORTER ---")
     topic = state["topic"]
-    urls = state["urls"]
-    platforms = state.get("platforms", ["wb"]) # Default to wb if not present
+    crawler_data = state.get("crawler_data", [])
+    platform_data = state.get("platform_data", {})
+    urls = state.get("urls", [])
     llm = get_agent_llm("reporter")
     
-    # Crawl content
-    if settings.USE_MOCK_CRAWLER:
-        print("[WARN] [SYSTEM] MOCK CRAWLER ACTIVE - Using fake data")
-        crawler = MockCrawler()
-    else:
-        print("[INFO] [SYSTEM] REAL CRAWLER ACTIVE - Connecting to platforms")
-        crawler = UnifiedCrawler()
-        
-    try:
-        # Combine URLs and Topic for the crawler (which now supports search)
-        crawl_inputs = urls.copy()
-        if topic:
-            crawl_inputs.append(topic)
+    content_text = ""
+    if crawler_data:
+        # Format crawler data with platform information
+        items_text = []
+        # Use top 20 items from all platforms to get diverse perspectives
+        for item in crawler_data[:20]:
+            platform = item.get("platform", "unknown")
+            title = item.get("title", "")
+            content = item.get("content", "")
+            author = item.get("author", {}).get("nickname", "Unknown")
+            interactions = item.get("interactions", {})
             
-        crawled_content = await crawler.crawl(crawl_inputs, platforms=platforms)
-    except Exception as e:
-        print(f"Error during crawling: {e}")
-        crawled_content = ""
-
-    if not crawled_content:
-        return {
-            "news_content": "",
-            "messages": ["Reporter: No content found."]
-        }
+            item_text = f"[平台: {platform}] 作者: {author}\n标题: {title}\n内容: {content}\n"
+            item_text += f"互动数据: 点赞{interactions.get('liked_count', 0)}, "
+            item_text += f"评论{interactions.get('comment_count', 0)}, "
+            item_text += f"分享{interactions.get('share_count', 0)}\n"
+            items_text.append(item_text)
+        
+        content_text = "\n---\n".join(items_text)
+        
+        # Add platform summary
+        platform_summary = ", ".join([f"{p}({len(platform_data.get(p, []))}条)" for p in platform_data.keys()])
+        source_info = f"多平台社交媒体数据 ({platform_summary})"
+    elif urls:
+        content_text = f"URLs provided: {urls}"
+        source_info = "Provided URLs"
+    else:
+        content_text = "No content provided. Please simulate based on topic."
+        source_info = "Simulation"
 
     messages = [
         SystemMessage(content=REPORTER_PROMPT),
-        HumanMessage(content=f"主题: {topic}. \n\n抓取的内容:\n{crawled_content}\n\n请总结核心事实。")
+        HumanMessage(content=f"主题: {topic}. 来源: {source_info}.\n\n内容:\n{content_text}\n\n请总结核心事实。")
     ]
     response = await llm.ainvoke(messages)
     content = extract_text_content(response.content)
@@ -254,7 +227,6 @@ async def analyst_node(state: GraphState):
     
     return {
         "initial_analysis": content,
-        "critique": None, # Reset critique so Debater runs again if needed
         "revision_count": state.get("revision_count", 0) + 1 if critique else 0,
         "messages": [f"Analyst: {content}"],
         "debate_history": history
@@ -265,17 +237,11 @@ async def debater_node(state: GraphState):
     analysis = state["initial_analysis"]
     topic = state["topic"]
     news_content = state["news_content"]
-    revision_count = state.get("revision_count", 0)
     llm = get_agent_llm("debater")
-    
-    # Enforce strictness in the first round
-    instruction = f"主题: {topic}\n\n新闻事实: {news_content}\n\n分析师观点: {analysis}\n\n请根据事实审查该分析。"
-    if revision_count == 0:
-        instruction += "\n\n重要提示：这是第一轮审查。你必须找出至少一个改进点或漏洞，**绝对不能**直接回复 PASS。"
     
     messages = [
         SystemMessage(content=DEBATER_PROMPT),
-        HumanMessage(content=instruction)
+        HumanMessage(content=f"主题: {topic}\n\n新闻事实: {news_content}\n\n分析师观点: {analysis}\n\n请根据事实审查该分析。")
     ]
     response = await llm.ainvoke(messages)
     content = extract_text_content(response.content)
@@ -328,28 +294,34 @@ async def writer_node(state: GraphState):
     }
 
 # --- 5. Conditional Logic ---
+
 def should_continue(state: GraphState):
     critique = state.get("critique", "")
     revision_count = state.get("revision_count", 0)
-    max_rounds = settings.DEBATE_MAX_ROUNDS
-
-    if "PASS" in critique or revision_count >= max_rounds:
+    
+    # Ensure critique is a string before calling upper()
+    if isinstance(critique, list):
+        critique = str(critique)
+    elif critique is None:
+        critique = ""
+        
+    if "VERDICT_PASS" in critique.upper() or revision_count >= settings.DEBATE_MAX_ROUNDS:
         return "writer"
-    else:
-        return "analyst"
+    return "analyst"
 
 # --- 6. Graph Construction ---
 
 workflow = StateGraph(GraphState)
 
-# workflow.add_node("supervisor", supervisor_node) # Removed Supervisor
+workflow.add_node("crawler_agent", crawler_agent_node)
 workflow.add_node("reporter", reporter_node)
 workflow.add_node("analyst", analyst_node)
 workflow.add_node("debater", debater_node)
 workflow.add_node("writer", writer_node)
 
-workflow.set_entry_point("reporter")
+workflow.set_entry_point("crawler_agent")
 
+workflow.add_edge("crawler_agent", "reporter")
 workflow.add_edge("reporter", "analyst")
 workflow.add_edge("analyst", "debater")
 
@@ -357,8 +329,8 @@ workflow.add_conditional_edges(
     "debater",
     should_continue,
     {
-        "writer": "writer",
-        "analyst": "analyst"
+        "analyst": "analyst",
+        "writer": "writer"
     }
 )
 

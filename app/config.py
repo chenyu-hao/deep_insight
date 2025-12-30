@@ -44,7 +44,6 @@ class Config:
         "analyst": {"provider": "deepseek", "model": DEEPSEEK_MODEL},
         "debater": {"provider": "deepseek", "model": DEEPSEEK_MODEL},
         "writer": {"provider": "deepseek", "model": DEEPSEEK_MODEL},
-        "supervisor": {"provider": "deepseek", "model": DEEPSEEK_MODEL},
     }
 
     # --- Workflow Settings ---
