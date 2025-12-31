@@ -7,7 +7,7 @@ url = "http://127.0.0.1:8000/api/analyze"
 data = {
     "urls": [], 
     "topic": "女生在玩你的特征是什么",
-    "platforms": ["dy", "ks", "tieba"]
+    "platforms": ["xhs"]
 }
 
 print(f"Connecting to {url}...")

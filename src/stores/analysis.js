@@ -1,4 +1,6 @@
 import { defineStore } from "pinia";
+import { api } from '../api';
+import { useWorkflowStore } from './workflow';
 
 export const useAnalysisStore = defineStore("analysis", {
     state: () => ({
@@ -6,65 +8,66 @@ export const useAnalysisStore = defineStore("analysis", {
         finalCopy: { title: "", body: "" },
         isLoading: false,
         error: null,
+        selectedPlatforms: [], // 选中的平台
     }),
+
+    getters: {
+        availablePlatforms: () => [
+            { code: 'wb', name: '微博' },
+            { code: 'bili', name: 'B站' },
+            { code: 'xhs', name: '小红书' },
+            { code: 'dy', name: '抖音' },
+            { code: 'ks', name: '快手' },
+            { code: 'tieba', name: '贴吧' },
+            { code: 'zhihu', name: '知乎' },
+        ],
+    },
+
     actions: {
+        setSelectedPlatforms(platforms) {
+            this.selectedPlatforms = platforms;
+        },
+
         async startAnalysis(payload) {
             this.logs = [];
             this.finalCopy = { title: "", body: "" };
             this.isLoading = true;
             this.error = null;
 
+            // 如果选择了平台，添加到 payload
+            const requestPayload = {
+                ...payload,
+                platforms: this.selectedPlatforms.length > 0 ? this.selectedPlatforms : payload.platforms,
+            };
+
+            // 启动工作流状态轮询
+            const workflowStore = useWorkflowStore();
+            workflowStore.startPolling();
+
             try {
-                await this.readStream(payload);
+                await api.analyze(requestPayload, (data) => {
+                    this.logs.push(data);
+
+                    // Update final copy if writer finished
+                    if (data.agent_name === "Writer" && data.step_content) {
+                        this.finalCopy = {
+                            title: "生成文案",
+                            body: data.step_content,
+                        };
+                    }
+
+                    // 如果完成或出错，停止轮询
+                    if (data.status === 'finished' || data.status === 'error') {
+                        workflowStore.stopPolling();
+                        workflowStore.fetchStatus(); // 最后更新一次状态
+                    }
+                });
             } catch (err) {
                 console.error("startAnalysis error", err);
                 this.error = err.message || "请求失败，请检查后端服务是否启动";
+                workflowStore.stopPolling();
             } finally {
                 this.isLoading = false;
-            }
-        },
-
-        async readStream(payload) {
-            const response = await fetch("http://127.0.0.1:8000/api/analyze", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
-
-            if (!response.ok || !response.body) {
-                throw new Error("Network response was not ok");
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = "";
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const parts = buffer.split("\n\n");
-                buffer = parts.pop() || "";
-
-                for (const part of parts) {
-                    if (!part.startsWith("data: ")) continue;
-                    const jsonStr = part.replace(/^data: /, "");
-                    try {
-                        const evt = JSON.parse(jsonStr);
-                        this.logs.push(evt);
-
-                        // Update final copy if writer finished
-                        if (evt.agent_name === "Writer" && evt.step_content) {
-                            this.finalCopy = {
-                                title: "生成文案",
-                                body: evt.step_content,
-                            };
-                        }
-                    } catch (e) {
-                        console.warn("parse error", e, part);
-                    }
-                }
             }
         },
     },
