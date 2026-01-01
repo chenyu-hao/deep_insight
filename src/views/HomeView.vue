@@ -346,7 +346,32 @@ const { logs: storeLogs } = storeToRefs(analysisStore)
 const { status: workflowStatus } = storeToRefs(workflowStore)
 
 const topic = ref('')
-const debateRounds = ref(2)
+
+// 从 localStorage 恢复辩论轮数，如果没有则使用默认值 2
+const loadDebateRounds = () => {
+  const saved = localStorage.getItem('grandchart_debate_rounds')
+  if (saved) {
+    try {
+      const rounds = parseInt(saved, 10)
+      if (rounds >= 1 && rounds <= 5) {
+        return rounds
+      }
+    } catch (e) {
+      console.error('Failed to load debate rounds from localStorage:', e)
+    }
+  }
+  return 2
+}
+
+const debateRounds = ref(loadDebateRounds())
+
+// 监听辩论轮数变化，保存到 localStorage
+watch(debateRounds, (newValue) => {
+  if (newValue >= 1 && newValue <= 5) {
+    localStorage.setItem('grandchart_debate_rounds', String(newValue))
+    console.log('[HomeView] 辩论轮数已保存到 localStorage:', newValue)
+  }
+})
 const isLoading = computed(() => analysisStore.isLoading)
 const debateLogs = ref([])
 const insight = computed(() => analysisStore.insight)

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
+from typing import Optional, List
 from app.schemas import (
     NewsRequest, AgentState, ConfigResponse, ConfigUpdateRequest,
     OutputFileListResponse, OutputFileInfo, OutputFileContentResponse,
@@ -10,6 +11,8 @@ from app.schemas import (
 )
 from app.services.workflow import app_graph
 from app.services.workflow_status import workflow_status
+from app.services.hot_news_collector import hot_news_collector
+from app.services.hot_news_scheduler import hot_news_scheduler
 from app.config import settings
 from pathlib import Path
 from datetime import datetime
@@ -473,3 +476,62 @@ async def generate_keywords_data(request: GenerateKeywordsRequest):
             KeywordItem(word="公信力", frequency=600),
             KeywordItem(word="甚至", frequency=500)
         ])
+
+
+# --- 热点新闻接口 ---
+
+@router.post("/hot-news/collect")
+async def collect_hot_news(sources: Optional[List[str]] = None):
+    """手动触发热点新闻收集"""
+    try:
+        result = await hot_news_collector.collect_news(sources=sources)
+        
+        # 按平台分组
+        from collections import defaultdict
+        news_by_platform = defaultdict(list)
+        news_list = result.get('news_list', [])
+        
+        for news in news_list:
+            platform = news.get('source_name', '未知平台')
+            news_by_platform[platform].append(news)
+        
+        # 转换为字典格式，方便前端使用
+        platform_news = {
+            platform: sorted(news_list, key=lambda x: x.get('rank', 999))
+            for platform, news_list in news_by_platform.items()
+        }
+        
+        return {
+            "success": result['success'],
+            "total_news": result.get('total_news', 0),
+            "successful_sources": result.get('successful_sources', 0),
+            "total_sources": result.get('total_sources', 0),
+            "news_list": news_list[:100],  # 返回所有新闻（最多100条）
+            "news_by_platform": platform_news,  # 按平台分组
+            "collection_time": result.get('collection_time'),
+            "error": result.get('error')
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"收集热点新闻失败: {str(e)}")
+
+
+@router.get("/hot-news/status")
+async def get_hot_news_status():
+    """获取热点新闻收集任务状态"""
+    status = hot_news_scheduler.get_status()
+    return status
+
+
+@router.post("/hot-news/run-once")
+async def run_hot_news_once():
+    """立即执行一次热点新闻收集（用于测试）"""
+    try:
+        await hot_news_scheduler.run_once()
+        status = hot_news_scheduler.get_status()
+        return {
+            "success": True,
+            "message": "热点新闻收集任务已执行",
+            "last_result": status.get('last_result')
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"执行失败: {str(e)}")
