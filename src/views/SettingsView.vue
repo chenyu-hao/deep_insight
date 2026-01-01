@@ -1,6 +1,40 @@
 <template>
   <div class="view-section animate-fade-in py-12 px-4">
-    <div class="max-w-3xl mx-auto">
+    <div class="max-w-3xl mx-auto space-y-6">
+      <!-- 平台选择设置 -->
+      <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+        <div class="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+          <Globe class="w-5 h-5 text-blue-600" />
+          <h2 class="font-bold text-slate-800">数据源平台选择</h2>
+        </div>
+        <div class="p-6 md:p-8">
+          <p class="text-sm text-slate-600 mb-4">选择要爬取数据的平台（未选择则默认爬取所有平台）</p>
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <label
+              v-for="platform in availablePlatforms"
+              :key="platform.code"
+              class="flex items-center space-x-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-slate-50"
+              :class="selectedPlatforms.includes(platform.code) 
+                ? 'border-blue-500 bg-blue-50' 
+                : 'border-slate-200 bg-white'"
+            >
+              <input
+                type="checkbox"
+                :value="platform.code"
+                v-model="selectedPlatforms"
+                class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                @change="savePlatformSelection"
+              />
+              <span class="text-sm font-medium text-slate-700">{{ platform.name }}</span>
+            </label>
+          </div>
+          <div class="mt-4 text-xs text-slate-400">
+            <p>已选择: {{ selectedPlatforms.length === 0 ? '全部平台（默认）' : selectedPlatforms.join('、') }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- API 接口配置 -->
       <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <div class="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center gap-2 justify-between">
           <div class="flex items-center gap-2">
@@ -160,16 +194,45 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import {
-  Server, PlusCircle, Plus, Edit2, Trash2, Settings2, X, Save
+  Server, PlusCircle, Plus, Edit2, Trash2, Settings2, X, Save, Globe
 } from 'lucide-vue-next'
 import { useConfigStore } from '../stores/config'
+import { useAnalysisStore } from '../stores/analysis'
 
 const emit = defineEmits(['api-updated'])
 
 const configStore = useConfigStore()
+const analysisStore = useAnalysisStore()
 const showModal = ref(false)
 const editingApiId = ref(null)
 const userApis = ref([])
+
+// 平台选择
+const availablePlatforms = computed(() => analysisStore.availablePlatforms)
+const selectedPlatforms = ref([])
+
+// 加载保存的平台选择
+const loadPlatformSelection = () => {
+  const saved = localStorage.getItem('grandchart_selected_platforms')
+  if (saved) {
+    try {
+      selectedPlatforms.value = JSON.parse(saved)
+      analysisStore.setSelectedPlatforms(selectedPlatforms.value)
+    } catch (e) {
+      console.error('Failed to load platform selection:', e)
+      selectedPlatforms.value = []
+    }
+  } else {
+    selectedPlatforms.value = []
+  }
+}
+
+// 保存平台选择
+const savePlatformSelection = () => {
+  localStorage.setItem('grandchart_selected_platforms', JSON.stringify(selectedPlatforms.value))
+  analysisStore.setSelectedPlatforms(selectedPlatforms.value)
+  console.log('[Settings] 平台选择已保存:', selectedPlatforms.value)
+}
 
 const formData = ref({
   providerKey: 'deepseek',
@@ -289,5 +352,6 @@ const removeApi = (id) => {
 
 onMounted(() => {
   loadApiSettings()
+  loadPlatformSelection()
 })
 </script>

@@ -44,11 +44,10 @@
             <button
               @click="switchTab('settings')"
               class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors flex items-center gap-1"
-              title="接口管理"
+              title="设置"
             >
-              <Plug class="w-5 h-5" />
-              <span class="text-xs font-bold hidden sm:inline">接口配置</span>
-              <span v-if="apiCount > 0" class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <Settings class="w-5 h-5" />
+              <span class="text-xs font-bold hidden sm:inline">设置</span>
             </button>
           </div>
         </div>
@@ -69,7 +68,7 @@
       <!-- Vision View: 愿景与价值 -->
       <VisionView v-if="currentTab === 'vision'" />
       
-      <!-- Settings View: 接口配置 -->
+      <!-- Settings View: 设置 -->
       <SettingsView v-if="currentTab === 'settings'" @api-updated="handleApiUpdated" />
     </main>
   </div>
@@ -77,7 +76,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { Waves, Zap, PieChart, Network, Flag, Plug } from 'lucide-vue-next'
+import { Waves, Zap, PieChart, Network, Flag, Settings } from 'lucide-vue-next'
 import HomeView from './views/HomeView.vue'
 import DataView from './views/DataView.vue'
 import ArchView from './views/ArchView.vue'
@@ -88,10 +87,6 @@ import { useConfigStore } from './stores/config'
 const currentTab = ref('home')
 const configStore = useConfigStore()
 
-const apiCount = computed(() => {
-  const apis = configStore.getUserApis
-  return apis.length
-})
 
 const switchTab = (tab) => {
   currentTab.value = tab
