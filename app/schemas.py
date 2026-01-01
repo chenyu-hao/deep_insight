@@ -74,6 +74,7 @@ class WorkflowStatusResponse(BaseModel):
     progress: int = 0
     started_at: Optional[str] = None
     topic: Optional[str] = None
+    current_platform: Optional[str] = None  # 当前正在爬取的平台
 
 # --- 数据生成相关 Schema ---
 class GenerateContrastRequest(BaseModel):

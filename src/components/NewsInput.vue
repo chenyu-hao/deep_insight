@@ -31,21 +31,45 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import { useAnalysisStore } from '../stores/analysis';
 
 const store = useAnalysisStore();
 const topic = ref('');
-const selectedPlatforms = ref([]);
+
+// 从 store 加载已保存的平台选择（store 初始化时会从 localStorage 恢复）
+const selectedPlatforms = ref(store.selectedPlatforms.length > 0 ? [...store.selectedPlatforms] : []);
 
 const availablePlatforms = computed(() => store.availablePlatforms);
 const isLoading = computed(() => store.isLoading);
 const error = computed(() => store.error);
 
-// 同步选中的平台到 store
+// 同步选中的平台到 store（只在用户主动更改时）
 watch(selectedPlatforms, (platforms) => {
   store.setSelectedPlatforms(platforms);
-}, { immediate: true });
+}, { deep: true });
+
+// 组件挂载时，确保从 store 同步（防止 store 在其他地方被更新）
+onMounted(() => {
+  // 确保从 store 同步最新的平台选择
+  if (store.selectedPlatforms && store.selectedPlatforms.length > 0) {
+    selectedPlatforms.value = [...store.selectedPlatforms];
+  } else {
+    // 如果 store 中没有，尝试从 localStorage 加载并同步到 store
+    const saved = localStorage.getItem('grandchart_selected_platforms');
+    if (saved) {
+      try {
+        const platforms = JSON.parse(saved);
+        if (platforms && platforms.length > 0) {
+          store.setSelectedPlatforms(platforms);
+          selectedPlatforms.value = [...platforms];
+        }
+      } catch (e) {
+        console.error('Failed to load platform selection:', e);
+      }
+    }
+  }
+});
 
 const onStart = async () => {
   await store.startAnalysis({ topic: topic.value });

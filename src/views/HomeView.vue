@@ -74,7 +74,61 @@
       </div>
     </header>
 
+    <!-- 顶部进度条 -->
+    <div v-if="isLoading && workflowStatus.running" class="sticky top-16 z-40 bg-white border-b border-slate-200 shadow-sm">
+      <div class="max-w-7xl mx-auto px-4 py-3">
+        <div class="flex items-center gap-4">
+          <div class="flex-1">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-sm font-medium text-slate-700">{{ currentStepText }}</span>
+              <span class="text-xs font-bold text-blue-600">{{ workflowStatus.progress }}%</span>
+            </div>
+            <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+              <div 
+                class="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all duration-500 ease-out"
+                :style="{ width: workflowStatus.progress + '%' }"
+              ></div>
+            </div>
+          </div>
+          <div class="text-xs text-slate-500 whitespace-nowrap">
+            {{ elapsedTime }}
+          </div>
+        </div>
+      </div>
+    </div>
+
     <section class="py-8 px-4 max-w-7xl mx-auto space-y-8">
+      <!-- 步骤列表卡片 -->
+      <div v-if="isLoading && workflowStatus.running" class="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+        <h3 class="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+          <Activity class="w-4 h-4 text-blue-600" /> 工作流进度
+        </h3>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div
+            v-for="step in workflowSteps"
+            :key="step.key"
+            :class="[
+              'p-3 rounded-lg border-2 transition-all',
+              getStepClass(step.key)
+            ]"
+          >
+            <div class="flex items-center gap-2 mb-1">
+              <component :is="step.icon" :class="['w-4 h-4', getStepIconClass(step.key)]" />
+              <span class="text-xs font-bold" :class="getStepTextClass(step.key)">
+                {{ step.name }}
+              </span>
+            </div>
+            <div class="text-[10px] text-slate-400 mt-1">
+              <span v-if="step.key === 'crawler_agent' && workflowStatus.current_platform" 
+                    class="text-blue-600 font-bold platform-crawling">
+                正在爬取 {{ workflowStatus.current_platform }}...
+              </span>
+              <span v-else>{{ step.description }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <!-- Left: Debate & Insight -->
         <div class="lg:col-span-7 flex flex-col gap-6">
@@ -274,18 +328,22 @@ import { storeToRefs } from 'pinia'
 import {
   Search, Sparkles, Square, TrendingUp, RefreshCw, Cpu, Bot, Lightbulb, Zap,
   Smartphone, Wifi, Image, RefreshCcw, Heart, Star, MessageCircle, PenTool,
-  Loader2, Copy, Shield, ThumbsUp, ThumbsDown, Glasses
+  Loader2, Copy, Shield, ThumbsUp, ThumbsDown, Glasses, Activity,
+  Database, FileText, Brain, MessageSquare, PenLine, CheckCircle2, Circle, Loader
 } from 'lucide-vue-next'
 import { useAnalysisStore } from '../stores/analysis'
 import { useConfigStore } from '../stores/config'
+import { useWorkflowStore } from '../stores/workflow'
 import MarkdownIt from 'markdown-it'
 
 const md = new MarkdownIt()
 const analysisStore = useAnalysisStore()
 const configStore = useConfigStore()
+const workflowStore = useWorkflowStore()
 
 // 使用 storeToRefs 确保响应式
 const { logs: storeLogs } = storeToRefs(analysisStore)
+const { status: workflowStatus } = storeToRefs(workflowStore)
 
 const topic = ref('')
 const debateRounds = ref(2)
@@ -310,6 +368,99 @@ const phoneStyles = [
   { bg: 'bg-red-50', icon: '🔥', textColor: 'text-red-900' },
   { bg: 'bg-emerald-50', icon: '🥗', textColor: 'text-emerald-900' }
 ]
+
+// 工作流步骤配置
+const workflowSteps = [
+  { key: 'crawler_agent', name: '数据爬取', description: '收集多平台数据', icon: Database, progress: 10 },
+  { key: 'reporter', name: '事实提取', description: '提取核心事实', icon: FileText, progress: 30 },
+  { key: 'analyst', name: '舆情分析', description: '深度洞察分析', icon: Brain, progress: 50 },
+  { key: 'debater', name: '智能辩论', description: '多角度辩论', icon: MessageSquare, progress: 70 },
+  { key: 'writer', name: '文案生成', description: '生成爆款文案', icon: PenLine, progress: 90 }
+]
+
+// 获取步骤状态类
+const getStepClass = (stepKey) => {
+  const currentStep = workflowStatus.value.current_step
+  const progress = workflowStatus.value.progress
+  
+  if (!currentStep) {
+    return 'border-slate-200 bg-slate-50'
+  }
+  
+  const stepIndex = workflowSteps.findIndex(s => s.key === stepKey)
+  const currentIndex = workflowSteps.findIndex(s => s.key === currentStep)
+  
+  if (stepIndex < currentIndex) {
+    // 已完成
+    return 'border-green-200 bg-green-50'
+  } else if (stepIndex === currentIndex) {
+    // 进行中
+    return 'border-blue-500 bg-blue-50 shadow-md'
+  } else {
+    // 待执行
+    return 'border-slate-200 bg-slate-50'
+  }
+}
+
+// 获取步骤图标类
+const getStepIconClass = (stepKey) => {
+  const currentStep = workflowStatus.value.current_step
+  if (!currentStep) return 'text-slate-400'
+  
+  const stepIndex = workflowSteps.findIndex(s => s.key === stepKey)
+  const currentIndex = workflowSteps.findIndex(s => s.key === currentStep)
+  
+  if (stepIndex < currentIndex) {
+    return 'text-green-600'
+  } else if (stepIndex === currentIndex) {
+    return 'text-blue-600 animate-pulse'
+  } else {
+    return 'text-slate-400'
+  }
+}
+
+// 获取步骤文字类
+const getStepTextClass = (stepKey) => {
+  const currentStep = workflowStatus.value.current_step
+  if (!currentStep) return 'text-slate-500'
+  
+  const stepIndex = workflowSteps.findIndex(s => s.key === stepKey)
+  const currentIndex = workflowSteps.findIndex(s => s.key === currentStep)
+  
+  if (stepIndex < currentIndex) {
+    return 'text-green-700'
+  } else if (stepIndex === currentIndex) {
+    return 'text-blue-700'
+  } else {
+    return 'text-slate-500'
+  }
+}
+
+// 当前步骤文本
+const currentStepText = computed(() => {
+  const step = workflowSteps.find(s => s.key === workflowStatus.value.current_step)
+  if (step) {
+    return `正在${step.name}...`
+  }
+  return '准备中...'
+})
+
+// 已用时间
+const elapsedTime = computed(() => {
+  if (!workflowStatus.value.started_at) return ''
+  
+  const start = new Date(workflowStatus.value.started_at)
+  const now = new Date()
+  const diff = Math.floor((now - start) / 1000)
+  
+  if (diff < 60) {
+    return `已用时 ${diff}秒`
+  } else {
+    const minutes = Math.floor(diff / 60)
+    const seconds = diff % 60
+    return `已用时 ${minutes}分${seconds}秒`
+  }
+})
 
 const renderMarkdown = (text) => {
   if (!text) return ''
@@ -526,5 +677,19 @@ onMounted(() => {
 <style scoped>
 .debate-bubble {
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 平台爬取闪烁动画 - 2秒循环，缓慢闪烁 */
+.platform-crawling {
+  animation: platformBlink 2s ease-in-out infinite;
+}
+
+@keyframes platformBlink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 </style>

@@ -128,28 +128,65 @@ async def crawler_agent_node(state: GraphState):
     topic = state["topic"]
     platforms = state.get("platforms", [])
     
+    print(f"[CRAWLER] 接收到的平台参数: {platforms} (类型: {type(platforms)})")
+    
     # If no platforms specified, use all supported platforms
     if not platforms:
+        print("[CRAWLER] 未指定平台，使用所有支持的平台")
         platforms = ["xhs", "dy", "bili", "wb", "zhihu", "tieba", "ks"]
+    else:
+        print(f"[CRAWLER] 使用用户选择的平台: {platforms}")
     
     # Filter out invalid platforms
     valid_platforms = [p for p in platforms if p in crawler_service.PLATFORM_MAP.values()]
     if not valid_platforms:
+        print(f"[CRAWLER] 警告: 所有平台都被过滤，使用默认平台")
         valid_platforms = ["xhs", "dy", "bili"]  # Default to most common platforms
     
     print(f"[CRAWLER] Crawling topic '{topic}' on platforms: {valid_platforms}")
     print(f"[模式] 使用串行模式爬取，避免配置冲突")
     
+    # Import workflow_status to update current platform
+    from app.services.workflow_status import workflow_status
+    
     # Crawl platforms serially to avoid config conflicts
     # Note: Will be upgraded to Agent architecture in the future
     try:
-        platform_data = await crawler_service.crawl_multiple_platforms(
-            platforms=valid_platforms,
-            keywords=topic,
-            max_items_per_platform=15,  # Limit per platform to avoid timeout
-            timeout_per_platform=180,  # 3 minutes per platform
-            max_concurrent=1  # Serial execution to avoid MediaCrawler config conflicts
-        )
+        # 由于是串行执行，我们可以逐个爬取并更新状态
+        platform_data = {}
+        total_platforms = len(valid_platforms)
+        
+        for idx, platform in enumerate(valid_platforms):
+            # 更新当前爬取的平台
+            platform_name_map = {
+                "wb": "微博",
+                "bili": "B站",
+                "xhs": "小红书",
+                "dy": "抖音",
+                "ks": "快手",
+                "tieba": "贴吧",
+                "zhihu": "知乎"
+            }
+            platform_display = platform_name_map.get(platform, platform)
+            await workflow_status.update_step("crawler_agent", current_platform=platform_display)
+            print(f"[CRAWLER] 正在爬取平台: {platform_display} ({idx+1}/{total_platforms})")
+            
+            # 爬取单个平台
+            try:
+                items = await crawler_service.crawl_platform(
+                    platform=platform,
+                    keywords=topic,
+                    max_items=15,
+                    timeout=180
+                )
+                platform_data[platform] = items
+                print(f"[CRAWLER] 平台 {platform_display} 爬取完成，获得 {len(items)} 条数据")
+            except Exception as e:
+                print(f"[警告] 平台 {platform_display} 爬取出错: {str(e)}")
+                platform_data[platform] = []
+        
+        # 爬取完成后，清空当前平台信息
+        await workflow_status.update_step("crawler_agent", current_platform=None)
         
         # Flatten all platform data into single list
         all_data = []

@@ -3,18 +3,36 @@ import { api } from '../api';
 import { useWorkflowStore } from './workflow';
 
 export const useAnalysisStore = defineStore("analysis", {
-    state: () => ({
-        logs: [],
-        finalCopy: { title: "", body: "" },
-        isLoading: false,
-        error: null,
-        selectedPlatforms: [], // 选中的平台
-        insight: "", // 核心洞察
-        insightTitle: "", // 洞察标题
-        insightSubtitle: "", // 洞察副标题
-        contrastData: null, // 舆论对比数据
-        dataUnlocked: false, // 数据是否解锁
-    }),
+    state: () => {
+        // 从 localStorage 恢复平台选择
+        const loadPlatformsFromStorage = () => {
+            const saved = localStorage.getItem('grandchart_selected_platforms');
+            if (saved) {
+                try {
+                    const platforms = JSON.parse(saved);
+                    if (Array.isArray(platforms) && platforms.length > 0) {
+                        return platforms;
+                    }
+                } catch (e) {
+                    console.error('Failed to load platform selection from localStorage:', e);
+                }
+            }
+            return [];
+        };
+
+        return {
+            logs: [],
+            finalCopy: { title: "", body: "" },
+            isLoading: false,
+            error: null,
+            selectedPlatforms: loadPlatformsFromStorage(), // 从 localStorage 恢复选中的平台
+            insight: "", // 核心洞察
+            insightTitle: "", // 洞察标题
+            insightSubtitle: "", // 洞察副标题
+            contrastData: null, // 舆论对比数据
+            dataUnlocked: false, // 数据是否解锁
+        };
+    },
 
     getters: {
         availablePlatforms: () => [
@@ -31,6 +49,12 @@ export const useAnalysisStore = defineStore("analysis", {
     actions: {
         setSelectedPlatforms(platforms) {
             this.selectedPlatforms = platforms;
+            // 同步到 localStorage
+            if (platforms && platforms.length > 0) {
+                localStorage.setItem('grandchart_selected_platforms', JSON.stringify(platforms));
+            } else {
+                localStorage.removeItem('grandchart_selected_platforms');
+            }
         },
 
         async startAnalysis(payload) {
@@ -44,11 +68,34 @@ export const useAnalysisStore = defineStore("analysis", {
             this.isLoading = true;
             this.error = null;
 
+            // 确保从 localStorage 加载最新的平台选择（防止时序问题）
+            const saved = localStorage.getItem('grandchart_selected_platforms');
+            if (saved) {
+                try {
+                    const platforms = JSON.parse(saved);
+                    if (Array.isArray(platforms) && platforms.length > 0) {
+                        this.selectedPlatforms = platforms;
+                        console.log('[AnalysisStore] 从 localStorage 恢复平台选择:', platforms);
+                    }
+                } catch (e) {
+                    console.error('Failed to load platform selection:', e);
+                }
+            }
+
             // 如果选择了平台，添加到 payload
+            // 优先使用 store 中的 selectedPlatforms，如果为空则使用 payload.platforms，都没有则传 undefined 让后端使用默认平台
             const requestPayload = {
                 ...payload,
-                platforms: this.selectedPlatforms.length > 0 ? this.selectedPlatforms : payload.platforms,
+                platforms: this.selectedPlatforms.length > 0 ?
+                    this.selectedPlatforms :
+                    (payload.platforms || undefined),
             };
+
+            console.log('[AnalysisStore] 最终请求 payload:', {
+                topic: requestPayload.topic,
+                platforms: requestPayload.platforms,
+                selectedPlatforms: this.selectedPlatforms
+            });
 
             // 启动工作流状态轮询
             const workflowStore = useWorkflowStore();
@@ -63,7 +110,7 @@ export const useAnalysisStore = defineStore("analysis", {
                         content_preview: (data.step_content || '').substring(0, 50),
                         has_model: !!data.model
                     });
-                    
+
                     // 使用 Vue 的响应式方式更新数组
                     this.logs = [...this.logs, data];
                     console.log('[AnalysisStore] ✅ 日志已添加，当前数量:', this.logs.length);

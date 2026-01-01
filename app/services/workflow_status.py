@@ -16,6 +16,7 @@ class WorkflowStatusManager:
             "progress": 0,
             "started_at": None,
             "topic": None,
+            "current_platform": None,  # 当前正在爬取的平台
         }
         self._lock = asyncio.Lock()
     
@@ -28,9 +29,10 @@ class WorkflowStatusManager:
                 "progress": 0,
                 "started_at": datetime.now().isoformat(),
                 "topic": topic,
+                "current_platform": None,
             }
     
-    async def update_step(self, step: str, progress: int = None):
+    async def update_step(self, step: str, progress: int = None, current_platform: Optional[str] = None):
         """更新当前步骤"""
         async with self._lock:
             self._status["current_step"] = step
@@ -46,6 +48,9 @@ class WorkflowStatusManager:
                     "writer": 90,
                 }
                 self._status["progress"] = step_progress.get(step, self._status["progress"])
+            # 更新当前平台（如果提供）
+            if current_platform is not None:
+                self._status["current_platform"] = current_platform
     
     async def finish_workflow(self):
         """完成工作流"""
@@ -56,6 +61,7 @@ class WorkflowStatusManager:
                 "progress": 100,
                 "started_at": self._status.get("started_at"),
                 "topic": self._status.get("topic"),
+                "current_platform": None,
             }
     
     async def get_status(self) -> Dict[str, Any]:
@@ -72,6 +78,7 @@ class WorkflowStatusManager:
                 "progress": 0,
                 "started_at": None,
                 "topic": None,
+                "current_platform": None,
             }
 
 
