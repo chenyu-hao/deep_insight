@@ -55,8 +55,22 @@ export const useAnalysisStore = defineStore("analysis", {
             workflowStore.startPolling();
 
             try {
+                console.log('[AnalysisStore] 开始调用 analyze API，payload:', requestPayload);
                 await api.analyze(requestPayload, (data) => {
-                    this.logs.push(data);
+                    console.log('[AnalysisStore] 📥 收到SSE数据:', {
+                        agent_name: data.agent_name,
+                        status: data.status,
+                        content_preview: (data.step_content || '').substring(0, 50),
+                        has_model: !!data.model
+                    });
+                    
+                    // 使用 Vue 的响应式方式更新数组
+                    this.logs = [...this.logs, data];
+                    console.log('[AnalysisStore] ✅ 日志已添加，当前数量:', this.logs.length);
+                    console.log('[AnalysisStore] 📋 最新日志:', {
+                        agent: data.agent_name,
+                        content_length: (data.step_content || '').length
+                    });
 
                     // 处理Analyst输出，解析洞察
                     if (data.agent_name === "Analyst" && data.step_content) {

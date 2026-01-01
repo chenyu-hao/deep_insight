@@ -100,13 +100,18 @@
                 <span class="text-slate-400 font-normal text-[10px]">{{ activeModelDisplay }}</span>
               </div>
               <div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-4 font-mono text-sm bg-white/50 relative scroll-smooth">
+                <!-- 调试信息 -->
+                <div v-if="false" class="text-xs text-red-500 p-2 bg-red-50 mb-2">
+                  调试: debateLogs.length={{ debateLogs.length }}, storeLogs.length={{ storeLogs.length }}
+                </div>
                 <div v-if="debateLogs.length === 0" class="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
                   <Bot class="w-16 h-16 mb-4 stroke-1" />
                   <p>等待指令启动...</p>
+                  <p class="text-xs mt-2 text-slate-300">Store日志数: {{ storeLogs.length }} | 显示日志数: {{ debateLogs.length }}</p>
                 </div>
                 <div
                   v-for="(log, idx) in debateLogs"
-                  :key="idx"
+                  :key="`log-${idx}-${log.name}`"
                   :class="[
                     'debate-bubble p-3 rounded-lg border text-xs leading-relaxed mb-3 shadow-sm bg-white animate-fade-in',
                     getBubbleClass(log.role)
@@ -264,7 +269,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import {
   Search, Sparkles, Square, TrendingUp, RefreshCw, Cpu, Bot, Lightbulb, Zap,
   Smartphone, Wifi, Image, RefreshCcw, Heart, Star, MessageCircle, PenTool,
@@ -277,6 +283,9 @@ import MarkdownIt from 'markdown-it'
 const md = new MarkdownIt()
 const analysisStore = useAnalysisStore()
 const configStore = useConfigStore()
+
+// 使用 storeToRefs 确保响应式
+const { logs: storeLogs } = storeToRefs(analysisStore)
 
 const topic = ref('')
 const debateRounds = ref(2)
@@ -346,11 +355,13 @@ const handleStart = async () => {
     return
   }
 
-  const userApis = configStore.getUserApis
-  if (userApis.length === 0) {
-    alert('请先配置 API Key')
-    return
-  }
+  // 暂时不检查 API Key，使用后端配置的 API Key
+  // 如需使用前端配置的 API Key，可以在 SettingsView 中配置
+  // const userApis = configStore.getUserApis
+  // if (userApis.length === 0) {
+  //   alert('请先配置 API Key')
+  //   return
+  // }
 
   if (isLoading.value) {
     // 停止分析
@@ -362,65 +373,135 @@ const handleStart = async () => {
     return
   }
 
+  // 清空旧数据
   debateLogs.value = []
   xhsPreview.value = { title: '', content: '' }
+  console.log('[HomeView] 🧹 已清空旧日志和预览数据，debateLogs长度:', debateLogs.value.length)
+  console.log('[HomeView] 📊 当前store logs长度:', analysisStore.logs.length)
 
   try {
+    console.log('[HomeView] 开始分析，议题:', topic.value, '辩论轮数:', debateRounds.value)
+    
     await analysisStore.startAnalysis({
       topic: topic.value,
       debate_rounds: debateRounds.value
     })
 
-    // 监听分析日志
-    const unwatch = analysisStore.$subscribe((mutation, state) => {
-      if (state.logs && state.logs.length > 0) {
-        const lastLog = state.logs[state.logs.length - 1]
+    console.log('[HomeView] 分析已启动，等待SSE数据...')
+  } catch (err) {
+    console.error('[HomeView] 分析错误:', err)
+    alert('分析失败: ' + err.message)
+  }
+}
+
+// 监听分析日志变化 - 使用 storeToRefs 确保响应式
+watch(storeLogs, (newLogs, oldLogs) => {
+  const oldLength = (oldLogs && oldLogs.length) || 0
+  const newLength = (newLogs && newLogs.length) || 0
+  console.log(`[HomeView] ⚡ watch触发: ${oldLength} -> ${newLength} (新增 ${newLength - oldLength} 条)`)
+  console.log('[HomeView] 当前debateLogs长度:', debateLogs.value.length)
+  
+  if (newLogs && newLogs.length > 0) {
+    // 只处理新增的日志
+    const startIndex = oldLength
+    const newLogsToProcess = newLogs.slice(startIndex)
+    
+    if (newLogsToProcess.length > 0) {
+      console.log('[HomeView] ✅ 处理新日志，数量:', newLogsToProcess.length)
+      
+      newLogsToProcess.forEach((log, index) => {
+        const globalIndex = startIndex + index
+        console.log(`[HomeView] 📝 处理日志 #${globalIndex}:`, {
+          agent_name: log.agent_name,
+          status: log.status,
+          content_preview: (log.step_content || '').substring(0, 100),
+          content_length: (log.step_content || '').length,
+          has_model: !!log.model
+        })
         
         // 添加辩论日志
         const roleMap = {
           'Moderator': 'moderator',
-          'Pro': 'pro',
-          'Con': 'con',
+          'Crawler': 'system',
+          'Reporter': 'system',
           'Analyst': 'analyst',
+          'Debater': 'con',
           'Writer': 'writer',
           'System': 'system'
         }
         
-        debateLogs.value.push({
-          role: roleMap[lastLog.agent_name] || 'system',
-          name: lastLog.agent_name,
-          content: lastLog.step_content,
-          model: lastLog.model || ''
-        })
+        const role = roleMap[log.agent_name] || 'system'
+        const logEntry = {
+          role: role,
+          name: log.agent_name,
+          content: log.step_content || '',
+          model: log.model || ''
+        }
+        
+        console.log('[HomeView] ➕ 添加辩论日志:', logEntry.name, '到数组，当前长度:', debateLogs.value.length)
+        debateLogs.value.push(logEntry)
+        console.log('[HomeView] ✅ 添加后数组长度:', debateLogs.value.length, '最新条目:', debateLogs.value[debateLogs.value.length - 1])
 
         // 处理Writer输出，更新预览
-        if (lastLog.agent_name === 'Writer' && lastLog.step_content) {
-          const content = lastLog.step_content
-          if (content.includes('TITLE:')) {
-            const parts = content.split('CONTENT:')
-            xhsPreview.value.title = parts[0].replace('TITLE:', '').trim()
-            xhsPreview.value.content = parts[1] ? parts[1].trim() : ''
+        if (log.agent_name === 'Writer' && log.step_content) {
+          console.log('[HomeView] ✍️ 处理Writer输出，更新预览，原始内容长度:', log.step_content.length)
+          const content = log.step_content
+          
+          // 尝试解析 TITLE: 和 CONTENT: 格式
+          if (content.includes('TITLE:') && content.includes('CONTENT:')) {
+            const titleMatch = content.match(/TITLE:\s*(.+?)(?:\n|CONTENT:)/s)
+            const contentMatch = content.match(/CONTENT:\s*(.+?)(?:\n\n|$)/s)
+            
+            if (titleMatch) {
+              xhsPreview.value.title = titleMatch[1].trim()
+              console.log('[HomeView] 📌 解析到标题:', xhsPreview.value.title)
+            }
+            if (contentMatch) {
+              xhsPreview.value.content = contentMatch[1].trim()
+              console.log('[HomeView] 📄 解析到内容，长度:', xhsPreview.value.content.length)
+            } else if (content.includes('CONTENT:')) {
+              // 如果只有 CONTENT: 标记，提取后面的内容
+              const parts = content.split('CONTENT:')
+              if (parts.length > 1) {
+                xhsPreview.value.content = parts.slice(1).join('CONTENT:').trim()
+                console.log('[HomeView] 🔧 使用split解析内容，长度:', xhsPreview.value.content.length)
+              }
+            }
           } else {
+            // 如果没有格式标记，直接使用全部内容
             xhsPreview.value.content = content
+            console.log('[HomeView] 📋 预览内容（无格式标记）长度:', content.length)
           }
         }
-      }
-
-      // 更新预览数据
-      if (state.finalCopy && state.finalCopy.body) {
-        if (!xhsPreview.value.title && state.finalCopy.title) {
-          xhsPreview.value.title = state.finalCopy.title
-        }
-        if (!xhsPreview.value.content && state.finalCopy.body) {
-          xhsPreview.value.content = state.finalCopy.body
-        }
-      }
-    })
-  } catch (err) {
-    console.error('Analysis error:', err)
-    alert('分析失败: ' + err.message)
+      })
+    } else {
+      console.log('[HomeView] ⚠️ 没有新日志需要处理')
+    }
+  } else {
+    console.log('[HomeView] ⚠️ newLogs为空或长度为0')
   }
-}
+}, { deep: true, immediate: false })
+
+// 监听最终文案变化
+watch(() => analysisStore.finalCopy, (newCopy) => {
+  console.log('[HomeView] 最终文案更新:', {
+    has_title: !!newCopy.title,
+    has_body: !!newCopy.body,
+    title_length: (newCopy.title || '').length,
+    body_length: (newCopy.body || '').length
+  })
+  
+  if (newCopy && newCopy.body) {
+    if (!xhsPreview.value.title && newCopy.title) {
+      xhsPreview.value.title = newCopy.title
+      console.log('[HomeView] 从finalCopy设置预览标题:', newCopy.title)
+    }
+    if (!xhsPreview.value.content && newCopy.body) {
+      xhsPreview.value.content = newCopy.body
+      console.log('[HomeView] 从finalCopy设置预览内容，长度:', newCopy.body.length)
+    }
+  }
+}, { deep: true })
 
 const copyToClipboard = async () => {
   try {

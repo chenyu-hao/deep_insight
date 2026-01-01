@@ -3,7 +3,10 @@ from fastapi.responses import StreamingResponse
 from app.schemas import (
     NewsRequest, AgentState, ConfigResponse, ConfigUpdateRequest,
     OutputFileListResponse, OutputFileInfo, OutputFileContentResponse,
-    WorkflowStatusResponse, LLMProviderConfig, CrawlerLimit
+    WorkflowStatusResponse, LLMProviderConfig, CrawlerLimit,
+    GenerateContrastRequest, GenerateContrastResponse,
+    GenerateSentimentRequest, GenerateSentimentResponse, EmotionItem,
+    GenerateKeywordsRequest, GenerateKeywordsResponse, KeywordItem
 )
 from app.services.workflow import app_graph
 from app.services.workflow_status import workflow_status
@@ -15,8 +18,13 @@ router = APIRouter()
 
 @router.post("/analyze")
 async def analyze_news(request: NewsRequest):
-    """执行完整的工作流分析（支持平台选择）"""
-    print(f"[IN] Received request: Topic='{request.topic}', URLs={request.urls}, Platforms={request.platforms}")
+    """执行完整的工作流分析（支持平台选择和辩论轮数）"""
+    # 验证 debate_rounds 参数
+    debate_rounds = request.debate_rounds or 2
+    if debate_rounds < 1 or debate_rounds > 5:
+        raise HTTPException(status_code=400, detail="debate_rounds 必须在 1-5 之间")
+    
+    print(f"[IN] Received request: Topic='{request.topic}', URLs={request.urls}, Platforms={request.platforms}, DebateRounds={debate_rounds}")
     
     # 更新工作流状态
     await workflow_status.start_workflow(request.topic)
@@ -27,6 +35,7 @@ async def analyze_news(request: NewsRequest):
             "urls": request.urls, 
             "topic": request.topic, 
             "platforms": request.platforms or [],  # 支持根据勾选框选择平台
+            "debate_rounds": debate_rounds,  # 传递辩论轮数
             "messages": [],
             "crawler_data": [],
             "platform_data": {}
@@ -46,8 +55,20 @@ async def analyze_news(request: NewsRequest):
                     messages = state_update.get("messages", [])
                     content = str(messages[-1]) if messages else "Processing..."
                     
+                    # 规范化节点名称
+                    node_name_map = {
+                        "crawler_agent": "Crawler",
+                        "reporter": "Reporter",
+                        "analyst": "Analyst",
+                        "debater": "Debater",
+                        "writer": "Writer"
+                    }
+                    display_name = node_name_map.get(node_name, node_name.capitalize())
+                    
+                    print(f"[SSE] 发送事件: {display_name}, 内容长度: {len(content)}")
+                    
                     agent_state = AgentState(
-                        agent_name=node_name.capitalize(),
+                        agent_name=display_name,
                         step_content=content,
                         status="thinking"
                     )
@@ -219,3 +240,236 @@ async def get_workflow_status():
     """获取当前工作流状态"""
     status = await workflow_status.get_status()
     return WorkflowStatusResponse(**status)
+
+
+# --- 数据生成接口 ---
+
+@router.post("/generate-data/contrast", response_model=GenerateContrastResponse)
+async def generate_contrast_data(request: GenerateContrastRequest):
+    """生成舆论对比数据"""
+    from app.llm import get_agent_llm
+    from langchain_core.messages import SystemMessage, HumanMessage
+    
+    llm = get_agent_llm("analyst")
+    
+    prompt = f"""基于以下议题和洞察，生成"中外舆论温差"数据。
+
+议题: {request.topic}
+洞察: {request.insight}
+
+请生成两组数据：
+1. 国内舆论分布：[支持%, 中立%, 反对%] - 三个数值之和应为100
+2. 国际舆论分布：[支持%, 中立%, 反对%] - 三个数值之和应为100
+
+请以JSON格式输出，格式如下：
+{{
+  "domestic": [支持%, 中立%, 反对%],
+  "intl": [支持%, 中立%, 反对%]
+}}
+
+只输出JSON，不要其他文字。"""
+    
+    messages = [
+        SystemMessage(content="你是一个数据分析专家，能够基于议题和洞察生成合理的舆论分布数据。"),
+        HumanMessage(content=prompt)
+    ]
+    
+    try:
+        response = await llm.ainvoke(messages)
+        content = str(response.content).strip()
+        
+        # 尝试解析JSON
+        import json
+        import re
+        
+        # 提取JSON部分
+        json_match = re.search(r'\{[^}]+\}', content, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group())
+            domestic = data.get("domestic", [65, 20, 15])
+            intl = data.get("intl", [30, 40, 30])
+        else:
+            # 如果解析失败，使用默认值
+            domestic = [65, 20, 15]
+            intl = [30, 40, 30]
+        
+        # 确保数值在合理范围内
+        domestic = [max(0, min(100, int(x))) for x in domestic[:3]]
+        intl = [max(0, min(100, int(x))) for x in intl[:3]]
+        
+        # 归一化确保总和为100
+        if sum(domestic) != 100:
+            total = sum(domestic)
+            domestic = [int(x * 100 / total) for x in domestic]
+            domestic[0] = 100 - sum(domestic[1:])
+        
+        if sum(intl) != 100:
+            total = sum(intl)
+            intl = [int(x * 100 / total) for x in intl]
+            intl[0] = 100 - sum(intl[1:])
+        
+        return GenerateContrastResponse(domestic=domestic, intl=intl)
+    except Exception as e:
+        # 如果出错，返回默认数据
+        return GenerateContrastResponse(domestic=[65, 20, 15], intl=[30, 40, 30])
+
+
+@router.post("/generate-data/sentiment", response_model=GenerateSentimentResponse)
+async def generate_sentiment_data(request: GenerateSentimentRequest):
+    """生成情感光谱数据"""
+    from app.llm import get_agent_llm
+    from langchain_core.messages import SystemMessage, HumanMessage
+    
+    llm = get_agent_llm("analyst")
+    
+    prompt = f"""基于以下议题和洞察，生成"网民情感光谱"数据。
+
+议题: {request.topic}
+洞察: {request.insight}
+
+请生成4-6种主要情感及其占比，常见情感包括：愤怒、嘲讽、失望、中立、支持、质疑等。
+
+请以JSON格式输出，格式如下：
+{{
+  "emotions": [
+    {{"name": "情感名称", "value": 百分比数值}},
+    ...
+  ]
+}}
+
+所有value之和应接近100。只输出JSON，不要其他文字。"""
+    
+    messages = [
+        SystemMessage(content="你是一个情感分析专家，能够基于议题和洞察生成合理的情感分布数据。"),
+        HumanMessage(content=prompt)
+    ]
+    
+    try:
+        response = await llm.ainvoke(messages)
+        content = str(response.content).strip()
+        
+        import json
+        import re
+        
+        json_match = re.search(r'\{[^}]+\}', content, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group())
+            emotions = data.get("emotions", [])
+        else:
+            emotions = [
+                {"name": "愤怒", "value": 55},
+                {"name": "嘲讽", "value": 25},
+                {"name": "失望", "value": 12},
+                {"name": "中立", "value": 8}
+            ]
+        
+        # 确保格式正确
+        emotion_items = []
+        for item in emotions[:6]:  # 最多6个
+            if isinstance(item, dict):
+                name = item.get("name", "未知")
+                value = max(0, min(100, int(item.get("value", 0))))
+                emotion_items.append(EmotionItem(name=name, value=value))
+        
+        # 如果为空，使用默认值
+        if not emotion_items:
+            emotion_items = [
+                EmotionItem(name="愤怒", value=55),
+                EmotionItem(name="嘲讽", value=25),
+                EmotionItem(name="失望", value=12),
+                EmotionItem(name="中立", value=8)
+            ]
+        
+        return GenerateSentimentResponse(emotions=emotion_items)
+    except Exception as e:
+        return GenerateSentimentResponse(emotions=[
+            EmotionItem(name="愤怒", value=55),
+            EmotionItem(name="嘲讽", value=25),
+            EmotionItem(name="失望", value=12),
+            EmotionItem(name="中立", value=8)
+        ])
+
+
+@router.post("/generate-data/keywords", response_model=GenerateKeywordsResponse)
+async def generate_keywords_data(request: GenerateKeywordsRequest):
+    """生成关键词数据"""
+    from app.llm import get_agent_llm
+    from langchain_core.messages import SystemMessage, HumanMessage
+    from collections import Counter
+    import re
+    
+    llm = get_agent_llm("analyst")
+    
+    # 如果有爬取数据，提取关键词
+    text_content = request.topic
+    if request.crawler_data:
+        texts = []
+        for item in request.crawler_data[:20]:  # 最多使用20条
+            title = item.get("title", "")
+            content = item.get("content", "")
+            texts.append(f"{title} {content}")
+        text_content = " ".join(texts)
+    
+    prompt = f"""基于以下议题和内容，生成高频关键词数据。
+
+议题: {request.topic}
+内容摘要: {text_content[:1000]}...
+
+请生成5-8个高频关键词及其频率（相对频率，数值范围100-2000）。
+
+请以JSON格式输出，格式如下：
+{{
+  "keywords": [
+    {{"word": "关键词", "frequency": 频率数值}},
+    ...
+  ]
+}}
+
+只输出JSON，不要其他文字。"""
+    
+    messages = [
+        SystemMessage(content="你是一个文本分析专家，能够提取高频关键词并估算其频率。"),
+        HumanMessage(content=prompt)
+    ]
+    
+    try:
+        response = await llm.ainvoke(messages)
+        content = str(response.content).strip()
+        
+        import json
+        
+        json_match = re.search(r'\{[^}]+\}', content, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group())
+            keywords = data.get("keywords", [])
+        else:
+            keywords = []
+        
+        # 确保格式正确
+        keyword_items = []
+        for item in keywords[:8]:  # 最多8个
+            if isinstance(item, dict):
+                word = item.get("word", "")
+                frequency = max(100, min(2000, int(item.get("frequency", 500))))
+                if word:
+                    keyword_items.append(KeywordItem(word=word, frequency=frequency))
+        
+        # 如果为空，使用默认值
+        if not keyword_items:
+            keyword_items = [
+                KeywordItem(word="真相", frequency=1200),
+                KeywordItem(word="反转", frequency=950),
+                KeywordItem(word="烂尾", frequency=800),
+                KeywordItem(word="公信力", frequency=600),
+                KeywordItem(word="甚至", frequency=500)
+            ]
+        
+        return GenerateKeywordsResponse(keywords=keyword_items)
+    except Exception as e:
+        return GenerateKeywordsResponse(keywords=[
+            KeywordItem(word="真相", frequency=1200),
+            KeywordItem(word="反转", frequency=950),
+            KeywordItem(word="烂尾", frequency=800),
+            KeywordItem(word="公信力", frequency=600),
+            KeywordItem(word="甚至", frequency=500)
+        ])

@@ -34,6 +34,7 @@ class GraphState(TypedDict):
     urls: List[str]
     topic: str
     platforms: List[str]  # Platforms to crawl
+    debate_rounds: int  # Number of debate rounds (1-5)
     crawler_data: List[Dict[str, Any]]  # Standardized crawled data
     platform_data: Dict[str, List[Dict[str, Any]]]  # Data grouped by platform
     news_content: str
@@ -66,6 +67,17 @@ ANALYST_PROMPT = """
 
 重要提示：如果你收到反驳意见，请评估其是否与原始新闻主题相关。
 如果反驳离题（产生幻觉），请忽略它并坚持原始事实。
+
+**输出格式要求（必须严格遵守）**：
+你的输出必须包含以下三个标记，每个标记占一行：
+INSIGHT: [100字左右的深度洞察，分析事件背后的社会焦虑、群体心理或结构性矛盾]
+TITLE: [4-8字的吸睛主标题，用于数据海报]
+SUB: [8-12字的补充副标题，用于数据海报]
+
+示例：
+INSIGHT: 这一事件反映了当前社会对信息透明度的普遍焦虑，以及公众对权威机构公信力的质疑。背后是信息不对称导致的信任危机。
+TITLE: 信息透明危机
+SUB: 公信力重建的紧迫性
 """
 
 DEBATER_PROMPT = """
@@ -88,7 +100,24 @@ WRITER_PROMPT = """
 - 结构清晰，分段明确。
 - 创建一个朗朗上口、标题党式的标题。
 - 关注"真相揭秘"或"幕后"角度。
+- 文末添加相关Tags（#标签格式）
 - 请用**中文**撰写。
+
+**输出格式要求（必须严格遵守）**：
+你的输出必须包含以下两个标记，每个标记占一行：
+TITLE: [小红书风格标题，可带Emoji，例如：🔥 真相来了！这件事背后竟然...]
+CONTENT: [正文内容，分段，口语化，文末加Tags]
+
+示例：
+TITLE: 🔥 真相来了！这件事背后竟然...
+CONTENT: 
+姐妹们，今天要聊一个超级重要的话题！
+
+最近大家都在讨论XXX，但是真相到底是什么？
+
+让我来给大家扒一扒...
+
+#真相 #热点 #深度分析
 """
 
 # --- 4. Node Functions ---
@@ -307,6 +336,7 @@ async def writer_node(state: GraphState):
 def should_continue(state: GraphState):
     critique = state.get("critique", "")
     revision_count = state.get("revision_count", 0)
+    debate_rounds = state.get("debate_rounds", settings.DEBATE_MAX_ROUNDS)
     
     # Ensure critique is a string before calling upper()
     if isinstance(critique, list):
@@ -315,11 +345,12 @@ def should_continue(state: GraphState):
         critique = ""
     
     # Check if we should stop: PASS verdict or reached max rounds
-    # Note: revision_count is 0-based, so we check >= max_rounds
-    # If max_rounds=4, we allow rounds 0,1,2,3 (4 rounds total)
-    if "VERDICT_PASS" in critique.upper() or "PASS" in critique.upper() or revision_count >= settings.DEBATE_MAX_ROUNDS:
-        if revision_count >= settings.DEBATE_MAX_ROUNDS:
-            print(f"[INFO] 已达到最大辩论轮数 ({settings.DEBATE_MAX_ROUNDS} 轮)，停止辩论")
+    # Note: revision_count is 0-based, so we check >= debate_rounds
+    # If debate_rounds=2, we allow rounds 0,1 (2 rounds total)
+    max_rounds = min(debate_rounds, settings.DEBATE_MAX_ROUNDS)  # 取两者较小值
+    if "VERDICT_PASS" in critique.upper() or "PASS" in critique.upper() or revision_count >= max_rounds:
+        if revision_count >= max_rounds:
+            print(f"[INFO] 已达到最大辩论轮数 ({max_rounds} 轮)，停止辩论")
         return "writer"
     return "analyst"
 

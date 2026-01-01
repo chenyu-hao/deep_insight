@@ -5,11 +5,13 @@ class NewsRequest(BaseModel):
     urls: List[str] = []
     topic: str
     platforms: Optional[List[str]] = None  # Optional: specify platforms to crawl
+    debate_rounds: Optional[int] = 2  # Optional: debate rounds (1-5), default 2
 
 class AgentState(BaseModel):
     agent_name: str
     step_content: str
     status: str  # 'thinking' | 'finished' | 'error'
+    model: Optional[str] = None  # Optional: model name used
 
 class CrawlerDataItem(BaseModel):
     """Standardized crawler data item"""
@@ -72,3 +74,34 @@ class WorkflowStatusResponse(BaseModel):
     progress: int = 0
     started_at: Optional[str] = None
     topic: Optional[str] = None
+
+# --- 数据生成相关 Schema ---
+class GenerateContrastRequest(BaseModel):
+    topic: str
+    insight: str
+
+class GenerateContrastResponse(BaseModel):
+    domestic: List[int]  # [支持%, 中立%, 反对%]
+    intl: List[int]  # [支持%, 中立%, 反对%]
+
+class GenerateSentimentRequest(BaseModel):
+    topic: str
+    insight: str
+
+class EmotionItem(BaseModel):
+    name: str
+    value: int
+
+class GenerateSentimentResponse(BaseModel):
+    emotions: List[EmotionItem]
+
+class GenerateKeywordsRequest(BaseModel):
+    topic: str
+    crawler_data: Optional[List[Dict[str, Any]]] = None
+
+class KeywordItem(BaseModel):
+    word: str
+    frequency: int
+
+class GenerateKeywordsResponse(BaseModel):
+    keywords: List[KeywordItem]

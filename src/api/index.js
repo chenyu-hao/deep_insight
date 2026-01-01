@@ -29,6 +29,8 @@ async function request(url, options = {}) {
  * 流式请求（SSE）
  */
 async function streamRequest(url, options = {}, onMessage) {
+    console.log('[API] 开始SSE请求:', url, options);
+
     const response = await fetch(`${API_BASE_URL}${url}`, {
         ...options,
         headers: {
@@ -37,30 +39,52 @@ async function streamRequest(url, options = {}, onMessage) {
         },
     });
 
+    console.log('[API] SSE响应状态:', response.status, response.ok);
+
     if (!response.ok || !response.body) {
-        throw new Error('Network response was not ok');
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('[API] SSE响应错误:', response.status, errorText);
+        throw new Error(`Network response was not ok: ${response.status} ${errorText}`);
     }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let eventCount = 0;
+
+    console.log('[API] 开始读取SSE流');
 
     while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
+        if (done) {
+            console.log('[API] SSE流读取完成，共处理', eventCount, '个事件');
+            break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const parts = buffer.split('\n\n');
         buffer = parts.pop() || '';
 
         for (const part of parts) {
-            if (!part.startsWith('data: ')) continue;
+            if (!part.trim()) continue;
+
+            if (!part.startsWith('data: ')) {
+                console.log('[API] 跳过非data行:', part.substring(0, 50));
+                continue;
+            }
+
             const jsonStr = part.replace(/^data: /, '');
             try {
                 const data = JSON.parse(jsonStr);
+                eventCount++;
+                console.log(`[API] 解析SSE事件 #${eventCount}:`, {
+                    agent_name: data.agent_name,
+                    status: data.status,
+                    content_length: (data.step_content || '').length
+                });
                 onMessage(data);
             } catch (e) {
-                console.warn('Parse error', e, part);
+                console.warn('[API] JSON解析错误:', e, '原始数据:', jsonStr.substring(0, 100));
             }
         }
     }
@@ -119,5 +143,38 @@ export const api = {
      */
     async getWorkflowStatus() {
         return request('/workflow/status');
+    },
+
+    /**
+     * 生成舆论对比数据
+     * @param {Object} payload - { topic, insight }
+     */
+    async generateContrastData(payload) {
+        return request('/generate-data/contrast', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+    },
+
+    /**
+     * 生成情感光谱数据
+     * @param {Object} payload - { topic, insight }
+     */
+    async generateSentimentData(payload) {
+        return request('/generate-data/sentiment', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+    },
+
+    /**
+     * 生成关键词数据
+     * @param {Object} payload - { topic, crawler_data? }
+     */
+    async generateKeywordsData(payload) {
+        return request('/generate-data/keywords', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
     },
 };

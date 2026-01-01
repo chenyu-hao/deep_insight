@@ -142,6 +142,7 @@
 <script setup>
 import { ref, onMounted, watch, nextTick, computed } from 'vue'
 import { useAnalysisStore } from '../stores/analysis'
+import { api } from '../api'
 import {
   Lock, LayoutGrid, ChevronRight, Edit3, Palette, Download,
   ArrowLeftRight, PieChart, Cloud
@@ -160,6 +161,23 @@ const posterSubtitle = ref('GrandChart 独家数据洞察')
 const selectedTheme = ref('white')
 const canvasRef = ref(null)
 let chartInstance = null
+
+// 数据状态
+const contrastData = ref({ domestic: [65, 20, 15], intl: [30, 40, 30] })
+const sentimentData = ref([
+  { name: '愤怒', value: 55 },
+  { name: '嘲讽', value: 25 },
+  { name: '失望', value: 12 },
+  { name: '中立', value: 8 }
+])
+const keywordsData = ref([
+  { word: '真相', frequency: 1200 },
+  { word: '反转', frequency: 950 },
+  { word: '烂尾', frequency: 800 },
+  { word: '公信力', frequency: 600 },
+  { word: '甚至', frequency: 500 }
+])
+const isLoadingData = ref(false)
 
 const dataOptions = [
   {
@@ -193,14 +211,53 @@ const themes = [
   { name: 'dark', label: '暗黑风', bg: 'bg-slate-800', border: 'border-slate-600' }
 ]
 
-const contrastData = ref({ domestic: [65, 20, 15], intl: [30, 40, 30] })
-
 const POSTER_THEMES = {
   white: { bgStart: '#ffffff', bgEnd: '#f8fafc', text: '#334155', accent: '#3b82f6', grid: 'rgba(0,0,0,0.05)', colors: ['#3b82f6', '#60a5fa'] },
   cream: { bgStart: '#fffbeb', bgEnd: '#fff7ed', text: '#78350f', accent: '#f59e0b', grid: 'rgba(120, 53, 15, 0.05)', colors: ['#f59e0b', '#fbbf24'] },
   blue: { bgStart: '#eff6ff', bgEnd: '#dbeafe', text: '#1e3a8a', accent: '#2563eb', grid: 'rgba(30, 58, 138, 0.05)', colors: ['#2563eb', '#60a5fa'] },
   pink: { bgStart: '#fff1f2', bgEnd: '#ffe4e6', text: '#881337', accent: '#e11d48', grid: 'rgba(136, 19, 55, 0.05)', colors: ['#e11d48', '#fb7185'] },
   dark: { bgStart: '#1e293b', bgEnd: '#0f172a', text: '#f8fafc', accent: '#818cf8', grid: 'rgba(255,255,255,0.1)', colors: ['#818cf8', '#a5b4fc'] }
+}
+
+// 生成数据的函数
+const generateData = async (type) => {
+  if (isLoadingData.value) return
+  
+  // 从日志中获取议题
+  const systemLog = analysisStore.logs.find(log => log.agent_name === 'System')
+  const topic = (systemLog && systemLog.step_content) || '当前议题'
+  const insight = analysisStore.insight || '核心洞察'
+  
+  if (!insight || insight.trim() === '') {
+    console.warn('洞察内容为空，无法生成数据')
+    return
+  }
+  
+  isLoadingData.value = true
+  try {
+    if (type === 'contrast') {
+      const data = await api.generateContrastData({ topic, insight })
+      contrastData.value = data
+      // 更新标题和副标题
+      if (analysisStore.insightTitle) {
+        posterTitle.value = analysisStore.insightTitle
+      }
+      if (analysisStore.insightSubtitle) {
+        posterSubtitle.value = analysisStore.insightSubtitle
+      }
+    } else if (type === 'sentiment') {
+      const data = await api.generateSentimentData({ topic, insight })
+      sentimentData.value = data.emotions
+    } else if (type === 'keywords') {
+      const data = await api.generateKeywordsData({ topic })
+      keywordsData.value = data.keywords
+    }
+    updateChart()
+  } catch (err) {
+    console.error('生成数据失败:', err)
+  } finally {
+    isLoadingData.value = false
+  }
 }
 
 const initChart = async () => {
@@ -287,19 +344,19 @@ const initChart = async () => {
       }
     } else if (selectedDataType.value === 'sentiment') {
       return {
-        labels: ['愤怒', '嘲讽', '失望', '中立'],
+        labels: sentimentData.value.map(item => item.name),
         datasets: [{
-          data: [55, 25, 12, 8],
-          backgroundColor: [theme.accent, '#f87171', '#fbbf24', '#cbd5e1'],
+          data: sentimentData.value.map(item => item.value),
+          backgroundColor: [theme.accent, '#f87171', '#fbbf24', '#cbd5e1', '#a78bfa', '#34d399'].slice(0, sentimentData.value.length),
           borderWidth: 0
         }]
       }
     } else {
       return {
-        labels: ['真相', '反转', '烂尾', '公信力', '甚至'],
+        labels: keywordsData.value.map(item => item.word),
         datasets: [{
           label: '热度',
-          data: [1200, 950, 800, 600, 500],
+          data: keywordsData.value.map(item => item.frequency),
           backgroundColor: theme.accent,
           borderRadius: 6
         }]
@@ -353,17 +410,20 @@ const initChart = async () => {
   })
 }
 
-const selectDataType = (type) => {
+const selectDataType = async (type) => {
   selectedDataType.value = type
   if (type === 'contrast') {
-    posterTitle.value = '中外舆论温差'
-    posterSubtitle.value = 'GrandChart · 舆情全域扫描'
+    posterTitle.value = analysisStore.insightTitle || '中外舆论温差'
+    posterSubtitle.value = analysisStore.insightSubtitle || 'GrandChart · 舆情全域扫描'
+    await generateData('contrast')
   } else if (type === 'sentiment') {
     posterTitle.value = '网民情感光谱'
     posterSubtitle.value = 'GrandChart · 情绪极化分析'
+    await generateData('sentiment')
   } else {
     posterTitle.value = '核心关键词云'
     posterSubtitle.value = 'GrandChart · 高频词汇捕捉'
+    await generateData('keywords')
   }
   updateChart()
 }
@@ -388,19 +448,26 @@ const downloadPoster = () => {
 }
 
 // 监听数据解锁（从分析store获取）
-watch(() => analysisStore.dataUnlocked, (unlocked) => {
+watch(() => analysisStore.dataUnlocked, async (unlocked) => {
   if (unlocked) {
+    // 数据解锁时，自动生成默认的对比数据
+    await generateData('contrast')
     nextTick(() => {
       initChart()
     })
   }
 })
 
-// 监听对比数据更新
-watch(() => analysisStore.contrastData, (data) => {
-  if (data) {
-    contrastData.value = data
-    updateChart()
+// 监听洞察更新，自动更新标题和副标题
+watch(() => analysisStore.insightTitle, (title) => {
+  if (title && selectedDataType.value === 'contrast') {
+    posterTitle.value = title
+  }
+})
+
+watch(() => analysisStore.insightSubtitle, (subtitle) => {
+  if (subtitle && selectedDataType.value === 'contrast') {
+    posterSubtitle.value = subtitle
   }
 })
 

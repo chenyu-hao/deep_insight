@@ -62,7 +62,9 @@
               v-if="userApis.length === 0"
               class="text-center py-8 border-2 border-dashed border-slate-100 rounded-xl text-slate-400 text-xs"
             >
-              暂无配置的 API 接口，系统无法运行。
+              <p class="mb-2">暂无配置的 API 接口</p>
+              <p class="text-[10px] text-slate-300">当前系统使用后端环境变量中的 API Key</p>
+              <p class="text-[10px] text-slate-300 mt-1">如需使用自定义 API Key，请在此配置</p>
             </div>
           </div>
         </div>
