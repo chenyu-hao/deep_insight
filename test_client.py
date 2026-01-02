@@ -4,14 +4,23 @@ import sys
 import time
 
 url = "http://127.0.0.1:8000/api/analyze"
+config_url = "http://127.0.0.1:8000/api/config"
 data = {
     "urls": [], 
-    "topic": "女生在玩你的特征是什么",
-    "platforms": ["xhs"]
+    "topic": "EV industry latest trends",
+    "platforms": ["dy","hn"],
+    "debate_rounds": 2
 }
 
 print(f"Connecting to {url}...")
 print(f"Payload: {data}")
+
+try:
+    cfg = requests.get(config_url, timeout=10).json()
+    hn_limits = (cfg.get("crawler_limits") or {}).get("hn")
+    print(f"[Config] hn limits: {hn_limits}")
+except Exception as e:
+    print(f"[Config] Could not fetch /api/config: {e}")
 
 try:
     with requests.post(url, json=data, stream=True) as response:

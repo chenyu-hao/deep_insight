@@ -84,6 +84,9 @@ class Config:
         "zhihu": {"max_items": 5, "max_comments": 10},
         "tieba": {"max_items": 5, "max_comments": 10},
         "ks": {"max_items": 5, "max_comments": 10},
+        # Foreign / intl
+        "hn": {"max_items": 30, "max_comments": 80},
+        "reddit": {"max_items": 8, "max_comments": 20},
     }
 
     # --- Hot News Settings (TopHub) ---

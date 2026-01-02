@@ -156,7 +156,7 @@ async def update_config(request: ConfigUpdateRequest):
     
     if request.default_platforms is not None:
         # 验证平台是否有效
-        valid_platforms = ["wb", "dy", "ks", "bili", "tieba", "zhihu", "xhs"]
+        valid_platforms = ["wb", "dy", "ks", "bili", "tieba", "zhihu", "xhs", "hn", "reddit"]
         invalid = [p for p in request.default_platforms if p not in valid_platforms]
         if invalid:
             raise HTTPException(status_code=400, detail=f"无效的平台: {invalid}")

@@ -7,8 +7,75 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from app.llm import get_agent_llm
 from app.config import settings
 
-from app.services.media_crawler_service import crawler_service
+from app.services.crawler_router_service import crawler_router_service
 from app.services.image_generator import image_generator_service
+
+
+_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+_ASCII_LETTER_RE = re.compile(r"[A-Za-z]")
+
+
+def _contains_cjk(text: str) -> bool:
+    return bool(text and _CJK_RE.search(text))
+
+
+def _contains_ascii_letters(text: str) -> bool:
+    return bool(text and _ASCII_LETTER_RE.search(text))
+
+
+async def _translate_topic_to_english_search_query(topic: str) -> Optional[str]:
+    """Translate a Chinese topic into concise English search keywords.
+
+    Best-effort: returns None if translation fails or looks invalid.
+    """
+    if not topic:
+        return None
+
+    translator_llm = None
+    try:
+        # Reuse existing resilient LLM config; no new config required.
+        translator_llm = get_agent_llm("reporter")
+    except Exception:
+        translator_llm = None
+
+    if translator_llm is None:
+        return None
+
+    prompt = (
+        "你是一个翻译引擎。\n"
+        "把用户提供的中文话题翻译成用于英文网站搜索的关键词短语。\n"
+        "要求：\n"
+        "- 只输出英文关键词短语（不要解释、不要加前缀）\n"
+        "- 尽量短（<= 12 个词），保留专有名词和关键限定词\n"
+        "- 用空格分隔词，不要换行\n"
+    )
+
+    try:
+        resp = await translator_llm.ainvoke(
+            [
+                SystemMessage(content=prompt),
+                HumanMessage(content=topic),
+            ]
+        )
+        english = extract_text_content(getattr(resp, "content", "")).strip()
+        english = re.sub(r"\s+", " ", english).strip()
+        english = re.sub(r"(?i)^(english|translation)\s*:\s*", "", english).strip()
+
+        if not english:
+            return None
+        # If it still contains Chinese, treat as failed.
+        if _contains_cjk(english):
+            return None
+        # Basic sanity: must contain at least one ASCII letter.
+        if not _contains_ascii_letters(english):
+            return None
+
+        # Keep it reasonably short for search queries.
+        if len(english) > 200:
+            english = english[:200].rsplit(" ", 1)[0].strip() or english[:200]
+        return english
+    except Exception:
+        return None
 
 # --- Helper Function ---
 def extract_text_content(content: Any) -> str:
@@ -165,11 +232,37 @@ async def crawler_agent_node(state: GraphState):
     else:
         print(f"[CRAWLER] 使用用户选择的平台: {platforms}")
     
-    # Filter out invalid platforms
-    valid_platforms = [p for p in platforms if p in crawler_service.PLATFORM_MAP.values()]
+    # Normalize + filter out invalid platforms
+    valid_platforms = []
+    invalid_platforms = []
+    for p in platforms:
+        normalized = crawler_router_service.normalize_platform(p)
+        if normalized in crawler_router_service.supported_platforms:
+            valid_platforms.append(normalized)
+        else:
+            invalid_platforms.append(p)
+    if invalid_platforms:
+        print(f"[CRAWLER] 这些平台不支持/被过滤: {invalid_platforms}")
     if not valid_platforms:
         print(f"[CRAWLER] 警告: 所有平台都被过滤，使用默认平台")
         valid_platforms = ["xhs", "dy", "bili"]  # Default to most common platforms
+
+    # If user topic is Chinese-only and foreign platforms are selected,
+    # translate once and use the English query for foreign crawlers.
+    foreign_platforms = {"hn", "reddit"}
+    needs_foreign_translation = (
+        any(p in foreign_platforms for p in valid_platforms)
+        and _contains_cjk(topic)
+        and not _contains_ascii_letters(topic)
+    )
+    foreign_topic = topic
+    if needs_foreign_translation:
+        translated = await _translate_topic_to_english_search_query(topic)
+        if translated:
+            foreign_topic = translated
+            print(f"[CRAWLER] 检测到中文话题，已翻译用于外网平台检索: {foreign_topic}")
+        else:
+            print("[CRAWLER] 检测到中文话题，但翻译失败，将使用原话题尝试外网检索")
     
     print(f"[CRAWLER] Crawling topic '{topic}' on platforms: {valid_platforms}")
     print(f"[模式] 使用串行模式爬取，避免配置冲突")
@@ -193,7 +286,9 @@ async def crawler_agent_node(state: GraphState):
                 "dy": "抖音",
                 "ks": "快手",
                 "tieba": "贴吧",
-                "zhihu": "知乎"
+                "zhihu": "知乎",
+                "hn": "Hacker News",
+                "reddit": "Reddit",
             }
             platform_display = platform_name_map.get(platform, platform)
             await workflow_status.update_step("crawler_agent", current_platform=platform_display)
@@ -201,11 +296,12 @@ async def crawler_agent_node(state: GraphState):
             
             # 爬取单个平台
             try:
-                items = await crawler_service.crawl_platform(
+                platform_keywords = foreign_topic if platform in foreign_platforms else topic
+                items = await crawler_router_service.crawl_platform(
                     platform=platform,
-                    keywords=topic,
+                    keywords=platform_keywords,
                     max_items=15,
-                    timeout=180
+                    timeout=180,
                 )
                 platform_data[platform] = items
                 print(f"[CRAWLER] 平台 {platform_display} 爬取完成，获得 {len(items)} 条数据")
