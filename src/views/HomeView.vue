@@ -200,7 +200,7 @@
 
           <div class="glass-card p-6 rounded-xl shadow-lg flex justify-center bg-slate-100/50">
             <div
-              class="glass-card rounded-[3rem] overflow-hidden shadow-2xl bg-white w-full max-w-[300px] h-[600px] flex flex-col transform transition hover:scale-[1.02] duration-300"
+              class="glass-card rounded-[3rem] overflow-hidden shadow-2xl bg-white w-full max-w-[320px] h-[680px] flex flex-col transform transition hover:scale-[1.02] duration-300"
               style="border: 8px solid #1e293b;">
               <!-- Status Bar -->
               <div class="relative bg-white px-5 h-10 flex items-center justify-between z-10 flex-shrink-0 select-none">
@@ -214,6 +214,30 @@
                 </div>
               </div>
 
+              <!-- App Header (XHS-like) -->
+              <div
+                class="h-12 px-4 bg-white flex items-center justify-between border-b border-slate-100 flex-shrink-0 select-none">
+                <div class="flex items-center gap-2 min-w-0">
+                  <ChevronLeft class="w-5 h-5 text-slate-900" />
+                  <div
+                    class="w-7 h-7 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+                    <Bot class="w-4 h-4 text-slate-500" />
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-xs font-bold text-slate-900 truncate">{{ xhsPreview.title ? 'TRAE' : '预览' }}</div>
+                    <div class="text-[10px] text-slate-400 truncate">已关注</div>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    class="px-3 py-1 rounded-full text-[10px] font-bold border border-slate-200 text-slate-700 bg-white">
+                    已关注
+                  </button>
+                  <Share2 class="w-4 h-4 text-slate-700" />
+                </div>
+              </div>
+
               <!-- Screen Content -->
               <div class="relative cursor-pointer group flex-1 flex flex-col overflow-hidden bg-white"
                 @click="switchPhoneImage" title="点击切换配图风格">
@@ -222,21 +246,30 @@
                 <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
                   <!-- 图片区域：位于文案上方 -->
                   <div :class="[
-                    'aspect-[3/4] relative overflow-hidden flex-shrink-0 transition-colors duration-500',
+                    'relative overflow-hidden flex-shrink-0 transition-colors duration-500',
+                    (analysisStore.imageUrls && analysisStore.imageUrls.length > 0) ? '' : 'aspect-[3/4]',
                     phoneStyles[currentPhoneStyleIndex].bg
                   ]">
-                    <!-- 优先显示生成的 AI 图片 -->
-                    <div v-if="analysisStore.imageUrls && analysisStore.imageUrls.length > 0" class="absolute inset-0">
+                    <!-- 优先显示生成的 AI 图片（高度随图片自适应，避免黑边） -->
+                    <div v-if="analysisStore.imageUrls && analysisStore.imageUrls.length > 0" class="relative"
+                      style="touch-action: pan-y;" @pointerdown="onPhonePointerDown" @pointermove="onPhonePointerMove"
+                      @pointerup="onPhonePointerUp" @pointercancel="onPhonePointerUp">
                       <img :src="analysisStore.imageUrls[currentImageIndex % analysisStore.imageUrls.length]"
-                        class="w-full h-full object-cover animate-fade-in" alt="AI Generated" />
+                        class="w-full h-auto block animate-fade-in" alt="AI Generated" draggable="false" />
+
+                      <!-- AI 生成提示（贴近截图样式） -->
+                      <div
+                        class="absolute top-2 left-2 flex items-center gap-1 bg-white/80 text-slate-700 text-[10px] px-2 py-1 rounded-full backdrop-blur-sm border border-slate-100">
+                        <AlertTriangle class="w-3 h-3 text-slate-700" />
+                        <span>内容可能使用AI技术生成</span>
+                      </div>
 
                       <!-- 多图指示器（小红书风格点点） -->
                       <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
                         <div v-for="(_, i) in analysisStore.imageUrls" :key="i" :class="[
                           'w-1.5 h-1.5 rounded-full transition-all duration-300',
                           (currentImageIndex % analysisStore.imageUrls.length) === i ? 'bg-white scale-125' : 'bg-white/50'
-                        ]">
-                        </div>
+                        ]"></div>
                       </div>
 
                       <div
@@ -288,18 +321,24 @@
 
                 <!-- 底部固定互动栏 -->
                 <div
-                  class="px-4 py-3 border-t border-slate-50 flex items-center justify-between text-slate-400 text-[10px] bg-white z-10">
-                  <div class="flex gap-2">
-                    <span>
-                      <Heart class="w-3 h-3 inline" /> 1.2w
+                  class="px-4 py-3 border-t border-slate-100 flex items-center justify-between text-slate-500 text-[10px] bg-white z-10 flex-shrink-0">
+                  <div class="flex-1 mr-3">
+                    <div
+                      class="w-full rounded-full bg-slate-100 text-slate-400 px-3 py-2 text-[10px] border border-slate-100">
+                      说点什么...
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-3 text-slate-500">
+                    <span class="whitespace-nowrap">
+                      <Heart class="w-3 h-3 inline" /> 57
                     </span>
-                    <span>
-                      <Star class="w-3 h-3 inline" /> 5k
+                    <span class="whitespace-nowrap">
+                      <Star class="w-3 h-3 inline" /> 15
+                    </span>
+                    <span class="whitespace-nowrap">
+                      <MessageCircle class="w-3 h-3 inline" /> 44
                     </span>
                   </div>
-                  <span>
-                    <MessageCircle class="w-3 h-3 inline" /> 892
-                  </span>
                 </div>
               </div>
             </div>
@@ -321,6 +360,12 @@
             <textarea :value="finalCopy" readonly
               class="w-full h-40 p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 font-mono resize-none focus:outline-none focus:border-blue-500 transition-colors"
               placeholder="等待辩论结束后，在此生成可直接发布的文案..."></textarea>
+            <button @click="exportAllImages"
+              :disabled="isExportingImages || !(analysisStore.imageUrls && analysisStore.imageUrls.length)"
+              class="absolute top-3 right-28 px-3 py-1.5 bg-blue-600 border border-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
+              <Download class="w-3 h-3" />
+              {{ isExportingImages ? '导出中...' : '导出图片' }}
+            </button>
             <button @click="copyToClipboard" :disabled="!finalCopy || finalCopy.length === 0"
               class="absolute top-3 right-3 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
               <Copy class="w-3 h-3" /> 复制全文
@@ -338,6 +383,7 @@ import { storeToRefs } from 'pinia'
 import {
   Search, Sparkles, Square, TrendingUp, RefreshCw, Cpu, Bot, Lightbulb, Zap,
   Smartphone, Wifi, Image, RefreshCcw, Heart, Star, MessageCircle, PenTool,
+  ChevronLeft, Share2, AlertTriangle, Download,
   Loader2, Copy, Shield, ThumbsUp, ThumbsDown, Glasses, Activity,
   Database, FileText, Brain, MessageSquare, PenLine, CheckCircle2, Circle, Loader
 } from 'lucide-vue-next'
@@ -401,6 +447,7 @@ const isLoading = computed(() => analysisStore.isLoading)
 const debateLogs = ref([])
 const insight = computed(() => analysisStore.insight)
 const xhsPreview = ref({ title: '', content: '' })
+const isExportingImages = ref(false)
 const finalCopy = computed(() => {
   if (analysisStore.finalCopy.title && analysisStore.finalCopy.body) {
     return `${analysisStore.finalCopy.title}\n\n${analysisStore.finalCopy.body}`
@@ -590,6 +637,66 @@ const switchPhoneImage = () => {
   }
 }
 
+// 手势：在图片区域左右拖拽/滑动切换图片（尽量模拟小红书的体验）
+let swipePointerId = null
+let swipeStartX = 0
+let swipeStartY = 0
+let swipeLastX = 0
+let swipeLock = null // 'x' | 'y' | null
+
+const onPhonePointerDown = (e) => {
+  // 仅在有图片时启用手势（无图时仍保留点击切换风格）
+  if (!(analysisStore.imageUrls && analysisStore.imageUrls.length > 0)) return
+  swipePointerId = e.pointerId
+  swipeStartX = e.clientX
+  swipeStartY = e.clientY
+  swipeLastX = e.clientX
+  swipeLock = null
+  try {
+    e.currentTarget.setPointerCapture(e.pointerId)
+  } catch (_) {
+    // ignore
+  }
+}
+
+const onPhonePointerMove = (e) => {
+  if (swipePointerId == null || e.pointerId !== swipePointerId) return
+  swipeLastX = e.clientX
+  const dx = e.clientX - swipeStartX
+  const dy = e.clientY - swipeStartY
+
+  // 首次判定方向，尽量不影响垂直滚动
+  if (!swipeLock) {
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return
+    swipeLock = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+  }
+
+  if (swipeLock === 'x') {
+    // 阻止水平滑动触发页面滚动
+    e.preventDefault?.()
+  }
+}
+
+const onPhonePointerUp = (e) => {
+  if (swipePointerId == null || e.pointerId !== swipePointerId) return
+
+  const dx = swipeLastX - swipeStartX
+  const threshold = 50
+  if (swipeLock === 'x' && Math.abs(dx) >= threshold) {
+    const len = analysisStore.imageUrls.length
+    if (len > 0) {
+      // dx < 0 向左滑：下一张；dx > 0 向右滑：上一张
+      const next = dx < 0
+        ? (currentImageIndex.value + 1) % len
+        : (currentImageIndex.value - 1 + len) % len
+      currentImageIndex.value = next
+    }
+  }
+
+  swipePointerId = null
+  swipeLock = null
+}
+
 const handleStart = async () => {
   if (!topic.value.trim()) {
     alert('请输入议题！')
@@ -694,7 +801,8 @@ watch(storeLogs, (newLogs, oldLogs) => {
           // 尝试解析 TITLE: 和 CONTENT: 格式
           if (content.includes('TITLE:') && content.includes('CONTENT:')) {
             const titleMatch = content.match(/TITLE:\s*(.+?)(?:\n|CONTENT:)/s)
-            const contentMatch = content.match(/CONTENT:\s*(.+?)(?:\n\n|$)/s)
+            // 内容可能包含多段落（多次空行），这里必须拿到 CONTENT: 之后的全部内容
+            const contentMatch = content.match(/CONTENT:\s*([\s\S]*)$/)
 
             if (titleMatch) {
               xhsPreview.value.title = titleMatch[1].trim()
@@ -766,6 +874,42 @@ const copyToClipboard = async () => {
   } catch (err) {
     console.error('Copy failed:', err)
     alert('复制失败，请手动复制')
+  }
+}
+
+const exportAllImages = async () => {
+  try {
+    if (!(analysisStore.imageUrls && analysisStore.imageUrls.length > 0)) {
+      alert('暂无可导出的图片')
+      return
+    }
+
+    isExportingImages.value = true
+
+    for (let i = 0; i < analysisStore.imageUrls.length; i += 1) {
+      const url = analysisStore.imageUrls[i]
+      try {
+        const res = await fetch(url)
+        if (!res.ok) {
+          throw new Error(`下载失败: ${res.status}`)
+        }
+        const blob = await res.blob()
+        const downloadUrl = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = downloadUrl
+        a.download = `xhs_image_${i + 1}.jpg`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(downloadUrl)
+      } catch (err) {
+        console.error('[HomeView] 导出图片失败:', err)
+        alert(`导出图片失败: ${err.message || err}`)
+        break
+      }
+    }
+  } finally {
+    isExportingImages.value = false
   }
 }
 
