@@ -37,19 +37,19 @@
             </div>
           </div>
 
-          <div class="mt-4 flex flex-wrap justify-center items-center gap-2 text-xs text-slate-500">
-            <div class="flex items-center gap-1 font-bold text-red-500">
+          <div class="mt-4 flex flex-nowrap justify-center items-center gap-2 text-xs text-slate-500">
+            <div class="flex items-center gap-1 font-bold text-red-500 whitespace-nowrap">
               <TrendingUp class="w-3 h-3" />
               <span>{{ trendingDate }}热搜:</span>
             </div>
-            <div class="flex gap-2">
-              <button v-for="(t, idx) in trendingTopics" :key="idx" @click="topic = t"
+            <div class="flex gap-2 flex-nowrap items-center">
+              <button v-for="(t, idx) in trendingTopics" :key="idx" @click="topic = t.title"
                 class="px-3 py-1 bg-white border border-slate-200 rounded-full hover:border-blue-300 hover:text-blue-600 transition-colors animate-fade-in text-xs whitespace-nowrap">
-                {{ t }}
+                {{ t.short || t.title }}
               </button>
             </div>
-            <button @click="refreshTrending"
-              class="ml-1 p-1 hover:bg-slate-100 rounded-full text-slate-400 transition-colors" title="刷新热搜">
+            <button @click="rotateTrending"
+              class="ml-1 p-1 hover:bg-slate-100 rounded-full text-slate-400 transition-colors shrink-0" title="刷新热搜">
               <RefreshCw class="w-3 h-3" />
             </button>
           </div>
@@ -224,7 +224,8 @@
                     <Bot class="w-4 h-4 text-slate-500" />
                   </div>
                   <div class="min-w-0">
-                    <div class="text-xs font-bold text-slate-900 truncate">{{ xhsPreview.title ? 'TRAE' : '预览' }}</div>
+                    <div class="text-xs font-bold text-slate-900 truncate">{{ xhsPreview.title ? 'Napstablook' : '预览' }}
+                    </div>
                     <div class="text-[10px] text-slate-400 truncate">已关注</div>
                   </div>
                 </div>
@@ -390,6 +391,7 @@ import {
 import { useAnalysisStore } from '../stores/analysis'
 import { useConfigStore } from '../stores/config'
 import { useWorkflowStore } from '../stores/workflow'
+import { api } from '../api'
 import MarkdownIt from 'markdown-it'
 
 const md = new MarkdownIt()
@@ -457,6 +459,10 @@ const finalCopy = computed(() => {
 const activeModelDisplay = ref('')
 const trendingDate = ref('')
 const trendingTopics = ref([])
+const trendingLoading = ref(false)
+const hotItemsAll = ref([])
+const hotWindowIndex = ref(0)
+const HOT_WINDOW_SIZE = 3
 const currentPhoneStyleIndex = ref(0)
 const currentImageIndex = ref(0)
 const maxStepIndex = ref(-1)
@@ -622,11 +628,66 @@ const getIcon = (role) => {
   return map[role] || Bot
 }
 
-const refreshTrending = () => {
+const shortenHotTitle = (title, maxLen = 18) => {
+  if (!title) return ''
+  const clean = String(title).trim()
+  if (clean.length <= maxLen) return clean
+  return clean.slice(0, maxLen) + '…'
+}
+
+const formatHotItems = (items = [], maxCount = 12) => {
+  return items.slice(0, maxCount).map((i) => ({
+    title: i.title || '',
+    short: shortenHotTitle(i.title || ''),
+  }))
+}
+
+const setTrendingWindow = (start = 0) => {
+  const list = hotItemsAll.value || []
+  if (!list.length) {
+    trendingTopics.value = []
+    return
+  }
+  const len = list.length
+  const s = ((start % len) + len) % len
+  const out = []
+  for (let i = 0; i < Math.min(HOT_WINDOW_SIZE, len); i += 1) {
+    out.push(list[(s + i) % len])
+  }
+  trendingTopics.value = out
+  hotWindowIndex.value = s
+}
+
+const rotateTrending = () => {
+  if (!hotItemsAll.value || hotItemsAll.value.length === 0) {
+    refreshTrending()
+    return
+  }
+  setTrendingWindow(hotWindowIndex.value + HOT_WINDOW_SIZE)
+}
+
+const refreshTrending = async () => {
+  trendingLoading.value = true
+  try {
+    const res = await api.getHotNews(8, 'hot', false)
+    const items = (res && res.items) ? res.items : []
+    if (items.length > 0) {
+      hotItemsAll.value = formatHotItems(items, 12)
+      setTrendingWindow(0)
+      const t = res.collection_time ? new Date(res.collection_time) : new Date()
+      trendingDate.value = `${t.getMonth() + 1}月${t.getDate()}日`
+      return
+    }
+  } catch (e) {
+    console.warn('[HomeView] 获取热榜失败，使用本地占位', e)
+  } finally {
+    trendingLoading.value = false
+  }
   const today = new Date()
   trendingDate.value = `${today.getMonth() + 1}月${today.getDate()}日`
   const topics = ['OpenAI Sora 2.0 发布', '国内油价调整', '高考分数线公布', '星舰第五次发射', 'DeepSeek V3 开源', '新能源车降价潮']
-  trendingTopics.value = topics.sort(() => 0.5 - Math.random()).slice(0, 3)
+  hotItemsAll.value = formatHotItems(topics.map((t) => ({ title: t })), 6)
+  setTrendingWindow(0)
 }
 
 const switchPhoneImage = () => {

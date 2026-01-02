@@ -251,6 +251,70 @@ async def get_output_file(filename: str):
         raise HTTPException(status_code=500, detail=f"读取文件失败: {str(e)}")
 
 
+@router.get("/hotnews")
+async def get_hot_news(limit: int = 10, source: str = "hot", force_refresh: bool = False):
+    """获取 TopHub 热榜数据（默认全榜）。
+
+    - limit: 返回条数上限（1-100）
+    - source: "hot"=TopHub 全榜；"all"=所有支持榜单；其他值=对应 source_id
+    - force_refresh: True 时跳过缓存，立即抓取
+    """
+    limit = max(1, min(100, int(limit)))
+    source_key = (source or "hot").strip().lower()
+
+    if source_key == "all":
+        source_ids = None  # 全部来源
+    elif source_key:
+        source_ids = [source_key]
+    else:
+        source_ids = ["hot"]
+
+    try:
+        result = await tophub_collector.collect_news(
+            source_ids=source_ids,
+            force_refresh=force_refresh,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"热榜抓取失败: {str(e)}")
+
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "未知错误"))
+
+    news_list = result.get("news_list", []) or []
+
+    items = []
+    seen = set()
+    for item in news_list:
+        title = (item.get("title") or "").strip()
+        url = (item.get("url") or "").strip()
+        if not title:
+            continue
+        dedupe_key = (title.lower(), url.lower())
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        items.append({
+            "title": title,
+            "url": url,
+            "rank": item.get("rank"),
+            "hot_value": item.get("hot_value"),
+            "source": item.get("source"),
+            "source_id": item.get("source_id"),
+            "platform": item.get("platform"),
+        })
+        if len(items) >= limit:
+            break
+
+    return {
+        "success": True,
+        "items": items,
+        "total": len(items),
+        "source": source_key or "hot",
+        "from_cache": result.get("from_cache", False),
+        "collection_time": result.get("collection_time"),
+    }
+
+
 @router.get("/workflow/status", response_model=WorkflowStatusResponse)
 async def get_workflow_status():
     """获取当前工作流状态"""

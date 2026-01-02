@@ -326,9 +326,9 @@ async def crawler_agent_node(state: GraphState):
                 seen_ids.add(content_id)
                 unique_data.append(item)
         
-        msg = f"Crawler Agent: Successfully crawled {len(unique_data)} unique items from {len(platform_data)} platforms."
+        msg = f"爬虫完成：从 {len(platform_data)} 个平台共获取 {len(unique_data)} 条去重数据。"
         if not unique_data:
-            msg = f"Crawler Agent: No data found for topic '{topic}' on any platform."
+            msg = f"爬虫完成：话题『{topic}』未获取到数据。"
         
         print(f"[SUCCESS] Crawler completed: {len(unique_data)} items from {len(platform_data)} platforms")
         
@@ -498,7 +498,7 @@ async def writer_node(state: GraphState):
     return {
         "final_copy": content,
         "output_file": file_path,
-        "messages": [f"Writer: {content}\n\nSystem: Document saved to {file_path}"]
+        "messages": [f"Writer: {content}"]
     }
 
 async def image_generator_node(state: GraphState):
