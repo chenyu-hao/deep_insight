@@ -65,7 +65,8 @@ async def analyze_news(request: NewsRequest):
                         "reporter": "Reporter",
                         "analyst": "Analyst",
                         "debater": "Debater",
-                        "writer": "Writer"
+                        "writer": "Writer",
+                        "image_generator": "Image Generator"
                     }
                     display_name = node_name_map.get(node_name, node_name.capitalize())
                     
@@ -74,7 +75,8 @@ async def analyze_news(request: NewsRequest):
                     agent_state = AgentState(
                         agent_name=display_name,
                         step_content=content,
-                        status="thinking"
+                        status="thinking",
+                        image_urls=state_update.get("image_urls")
                     )
                     
                     # Yield SSE format

@@ -8,6 +8,7 @@ from app.llm import get_agent_llm
 from app.config import settings
 
 from app.services.media_crawler_service import crawler_service
+from app.services.image_generator import image_generator_service
 
 # --- Helper Function ---
 def extract_text_content(content: Any) -> str:
@@ -42,6 +43,8 @@ class GraphState(TypedDict):
     critique: Optional[str]
     revision_count: int
     final_copy: str
+    image_urls: List[str]
+    output_file: Optional[str]
     messages: List[str] # Keep for SSE compatibility
     debate_history: List[str] # Track the debate process
 
@@ -398,7 +401,30 @@ async def writer_node(state: GraphState):
         
     return {
         "final_copy": content,
+        "output_file": file_path,
         "messages": [f"Writer: {content}\n\nSystem: Document saved to {file_path}"]
+    }
+
+async def image_generator_node(state: GraphState):
+    print("--- IMAGE GENERATOR ---")
+    final_copy = state["final_copy"]
+    output_file = state.get("output_file")
+    
+    # Update status
+    from app.services.workflow_status import workflow_status
+    await workflow_status.update_step("image_generator")
+    
+    image_urls = await image_generator_service.generate_images(final_copy)
+    
+    if output_file and os.path.exists(output_file) and image_urls:
+        with open(output_file, "a", encoding="utf-8") as f:
+            f.write("\n\n## 生成的配图\n\n")
+            for idx, url in enumerate(image_urls):
+                f.write(f"![图片{idx+1}]({url})\n\n")
+    
+    return {
+        "image_urls": image_urls,
+        "messages": [f"Image Generator: Generated {len(image_urls)} images."]
     }
 
 # --- 5. Conditional Logic ---
@@ -445,6 +471,7 @@ workflow.add_node("reporter", reporter_node)
 workflow.add_node("analyst", analyst_node)
 workflow.add_node("debater", debater_node)
 workflow.add_node("writer", writer_node)
+workflow.add_node("image_generator", image_generator_node)
 
 workflow.set_entry_point("crawler_agent")
 
@@ -461,6 +488,7 @@ workflow.add_conditional_edges(
     }
 )
 
-workflow.add_edge("writer", END)
+workflow.add_edge("writer", "image_generator")
+workflow.add_edge("image_generator", END)
 
 app_graph = workflow.compile()

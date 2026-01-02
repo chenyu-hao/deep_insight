@@ -215,62 +215,91 @@
               </div>
 
               <!-- Screen Content -->
-              <div class="relative cursor-pointer group flex-1 flex flex-col overflow-hidden" @click="switchPhoneImage"
-                title="点击切换配图风格">
-                <div :class="[
-                  'aspect-[3/4] relative overflow-hidden flex-shrink-0 transition-colors duration-500',
-                  phoneStyles[currentPhoneStyleIndex].bg
-                ]">
-                  <div v-if="!xhsPreview.title"
-                    class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 transition-opacity duration-300">
-                    <Image class="w-8 h-8 mb-2 opacity-50" />
-                    <span class="text-xs">AI 配图生成区</span>
-                  </div>
-                  <div v-else
-                    class="absolute inset-0 flex flex-col items-center justify-center opacity-100 transition-opacity duration-700 p-4 text-center">
-                    <div class="text-6xl mb-4 drop-shadow-sm transition-transform duration-300 group-hover:scale-110">
-                      {{ phoneStyles[currentPhoneStyleIndex].icon }}
+              <div class="relative cursor-pointer group flex-1 flex flex-col overflow-hidden bg-white"
+                @click="switchPhoneImage" title="点击切换配图风格">
+
+                <!-- 可滚动内容区 -->
+                <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
+                  <!-- 图片区域：位于文案上方 -->
+                  <div :class="[
+                    'aspect-[3/4] relative overflow-hidden flex-shrink-0 transition-colors duration-500',
+                    phoneStyles[currentPhoneStyleIndex].bg
+                  ]">
+                    <!-- 优先显示生成的 AI 图片 -->
+                    <div v-if="analysisStore.imageUrls && analysisStore.imageUrls.length > 0" class="absolute inset-0">
+                      <img :src="analysisStore.imageUrls[currentImageIndex % analysisStore.imageUrls.length]"
+                        class="w-full h-full object-cover animate-fade-in" alt="AI Generated" />
+
+                      <!-- 多图指示器（小红书风格点点） -->
+                      <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                        <div v-for="(_, i) in analysisStore.imageUrls" :key="i" :class="[
+                          'w-1.5 h-1.5 rounded-full transition-all duration-300',
+                          (currentImageIndex % analysisStore.imageUrls.length) === i ? 'bg-white scale-125' : 'bg-white/50'
+                        ]">
+                        </div>
+                      </div>
+
+                      <div
+                        class="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full backdrop-blur-sm">
+                        {{ (currentImageIndex % analysisStore.imageUrls.length) + 1 }} / {{
+                          analysisStore.imageUrls.length }}
+                      </div>
                     </div>
-                    <h2 :class="[
-                      'text-xl font-black bg-white/80 backdrop-blur-md px-4 py-2 rounded-xl shadow-lg transform -rotate-2 border border-slate-100',
-                      phoneStyles[currentPhoneStyleIndex].textColor
-                    ]">
-                      {{ xhsPreview.title.substring(0, 15) }}
-                    </h2>
-                    <div
-                      class="absolute bottom-4 right-4 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                      点击切换风格
-                      <RefreshCcw class="w-3 h-3 inline" />
+
+                    <div v-else-if="!xhsPreview.title"
+                      class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 transition-opacity duration-300">
+                      <Image class="w-8 h-8 mb-2 opacity-50" />
+                      <span class="text-xs">AI 配图生成区</span>
+                    </div>
+                    <div v-else
+                      class="absolute inset-0 flex flex-col items-center justify-center opacity-100 transition-opacity duration-700 p-4 text-center">
+                      <div class="text-6xl mb-4 drop-shadow-sm transition-transform duration-300 group-hover:scale-110">
+                        {{ phoneStyles[currentPhoneStyleIndex].icon }}
+                      </div>
+                      <h2 :class="[
+                        'text-xl font-black bg-white/80 backdrop-blur-md px-4 py-2 rounded-xl shadow-lg transform -rotate-2 border border-slate-100',
+                        phoneStyles[currentPhoneStyleIndex].textColor
+                      ]">
+                        {{ xhsPreview.title.substring(0, 15) }}
+                      </h2>
+                      <div
+                        class="absolute bottom-4 right-4 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                        点击切换风格
+                        <RefreshCcw class="w-3 h-3 inline" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 文案区域 -->
+                  <div class="p-4 flex-1 flex flex-col">
+                    <h4 class="font-bold text-sm text-slate-900 mb-2">
+                      {{ xhsPreview.title || '标题生成中...' }}
+                    </h4>
+                    <div class="text-xs text-slate-600 space-y-2 flex-1">
+                      <div v-if="!xhsPreview.content" class="space-y-2">
+                        <div class="h-2 bg-slate-100 rounded w-full animate-pulse"></div>
+                        <div class="h-2 bg-slate-100 rounded w-5/6 animate-pulse"></div>
+                        <div class="h-2 bg-slate-100 rounded w-4/6 animate-pulse"></div>
+                      </div>
+                      <div v-else class="prose prose-xs max-w-none" v-html="renderMarkdown(xhsPreview.content)"></div>
                     </div>
                   </div>
                 </div>
 
-                <div class="p-4 bg-white flex-1 flex flex-col overflow-hidden">
-                  <h4 class="font-bold text-sm text-slate-900 mb-2 truncate">
-                    {{ xhsPreview.title || '标题生成中...' }}
-                  </h4>
-                  <div class="text-xs text-slate-600 space-y-2 flex-1 overflow-y-auto custom-scrollbar pr-1">
-                    <div v-if="!xhsPreview.content" class="space-y-2">
-                      <div class="h-2 bg-slate-100 rounded w-full animate-pulse"></div>
-                      <div class="h-2 bg-slate-100 rounded w-5/6 animate-pulse"></div>
-                      <div class="h-2 bg-slate-100 rounded w-4/6 animate-pulse"></div>
-                    </div>
-                    <div v-else class="prose prose-xs max-w-none" v-html="renderMarkdown(xhsPreview.content)"></div>
-                  </div>
-                  <div
-                    class="mt-auto pt-3 border-t border-slate-50 flex items-center justify-between text-slate-400 text-[10px]">
-                    <div class="flex gap-2">
-                      <span>
-                        <Heart class="w-3 h-3 inline" /> 1.2w
-                      </span>
-                      <span>
-                        <Star class="w-3 h-3 inline" /> 5k
-                      </span>
-                    </div>
+                <!-- 底部固定互动栏 -->
+                <div
+                  class="px-4 py-3 border-t border-slate-50 flex items-center justify-between text-slate-400 text-[10px] bg-white z-10">
+                  <div class="flex gap-2">
                     <span>
-                      <MessageCircle class="w-3 h-3 inline" /> 892
+                      <Heart class="w-3 h-3 inline" /> 1.2w
+                    </span>
+                    <span>
+                      <Star class="w-3 h-3 inline" /> 5k
                     </span>
                   </div>
+                  <span>
+                    <MessageCircle class="w-3 h-3 inline" /> 892
+                  </span>
                 </div>
               </div>
             </div>
@@ -382,6 +411,7 @@ const activeModelDisplay = ref('')
 const trendingDate = ref('')
 const trendingTopics = ref([])
 const currentPhoneStyleIndex = ref(0)
+const currentImageIndex = ref(0)
 const maxStepIndex = ref(-1)
 const maxProgress = ref(0)
 
@@ -417,9 +447,10 @@ const phoneStyles = [
 const workflowSteps = [
   { key: 'crawler_agent', name: '数据爬取', description: '收集多平台数据', icon: Database, progress: 10 },
   { key: 'reporter', name: '事实提取', description: '提取核心事实', icon: FileText, progress: 30 },
-  { key: 'analyst', name: '舆情分析', description: '深度洞察分析', icon: Brain, progress: 50 },
-  { key: 'debater', name: '智能辩论', description: '多角度辩论', icon: MessageSquare, progress: 70 },
-  { key: 'writer', name: '文案生成', description: '生成爆款文案', icon: PenLine, progress: 90 }
+  { key: 'analyst', name: '舆情分析', description: '深度洞察分析', icon: Brain, progress: 40 },
+  { key: 'debater', name: '智能辩论', description: '多角度辩论', icon: MessageSquare, progress: 60 },
+  { key: 'writer', name: '文案生成', description: '生成爆款文案', icon: PenLine, progress: 80 },
+  { key: 'image_generator', name: '配图生成', description: 'AI生成组图', icon: Image, progress: 95 }
 ]
 
 // 获取步骤状态类
@@ -552,7 +583,11 @@ const refreshTrending = () => {
 }
 
 const switchPhoneImage = () => {
-  currentPhoneStyleIndex.value = (currentPhoneStyleIndex.value + 1) % phoneStyles.length
+  if (analysisStore.imageUrls && analysisStore.imageUrls.length > 0) {
+    currentImageIndex.value = (currentImageIndex.value + 1) % analysisStore.imageUrls.length
+  } else {
+    currentPhoneStyleIndex.value = (currentPhoneStyleIndex.value + 1) % phoneStyles.length
+  }
 }
 
 const handleStart = async () => {
@@ -635,6 +670,7 @@ watch(storeLogs, (newLogs, oldLogs) => {
           'Analyst': 'analyst',
           'Debater': 'con',
           'Writer': 'writer',
+          'Image Generator': 'pro',
           'System': 'system'
         }
 
@@ -710,6 +746,13 @@ watch(() => analysisStore.finalCopy, (newCopy) => {
     }
   }
 }, { deep: true })
+
+// 监听图片列表变化：新一批图片到达时从第一张开始展示
+watch(() => analysisStore.imageUrls.length, (newLen) => {
+  if (newLen > 0) {
+    currentImageIndex.value = 0
+  }
+})
 
 const copyToClipboard = async () => {
   try {

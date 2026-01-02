@@ -31,6 +31,10 @@ class Config:
     DOUBAO_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
     DOUBAO_MODEL = "doubao-seed-1-6-251015"
 
+    # --- 5.1 Volcengine Visual API (Image Generation) ---
+    VOLC_ACCESS_KEY = os.getenv("VOLC_ACCESS_KEY", "")
+    VOLC_SECRET_KEY = os.getenv("VOLC_SECRET_KEY", "")
+
     # --- 6. Zhipu AI ---
     _zhipu_keys_str = os.getenv("ZHIPU_API_KEYS", "")
     ZHIPU_API_KEYS = [k.strip() for k in _zhipu_keys_str.split(",") if k.strip()]

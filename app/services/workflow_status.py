@@ -46,10 +46,11 @@ class WorkflowStatusManager:
                 # 根据步骤自动计算进度
                 step_progress = {
                     "crawler_agent": 10,
-                    "reporter": 30,
-                    "analyst": 50,
-                    "debater": 70,
-                    "writer": 90,
+                    "reporter": 25,
+                    "analyst": 40,
+                    "debater": 60,
+                    "writer": 80,
+                    "image_generator": 95,
                 }
                 self._status["progress"] = step_progress.get(step, self._status["progress"])
             

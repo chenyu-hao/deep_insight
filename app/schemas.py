@@ -12,6 +12,7 @@ class AgentState(BaseModel):
     step_content: str
     status: str  # 'thinking' | 'finished' | 'error'
     model: Optional[str] = None  # Optional: model name used
+    image_urls: Optional[List[str]] = None  # Optional: generated image URLs
 
 class CrawlerDataItem(BaseModel):
     """Standardized crawler data item"""
