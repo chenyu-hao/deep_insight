@@ -255,8 +255,22 @@
                     <div v-if="analysisStore.imageUrls && analysisStore.imageUrls.length > 0" class="relative"
                       style="touch-action: pan-y;" @pointerdown="onPhonePointerDown" @pointermove="onPhonePointerMove"
                       @pointerup="onPhonePointerUp" @pointercancel="onPhonePointerUp">
-                      <img :src="analysisStore.imageUrls[currentImageIndex % analysisStore.imageUrls.length]"
-                        class="w-full h-auto block animate-fade-in" alt="AI Generated" draggable="false" />
+                      <transition name="image-fade" mode="out-in">
+                        <img 
+                          :key="currentImageIndex"
+                          :src="analysisStore.imageUrls[currentImageIndex % analysisStore.imageUrls.length]"
+                          class="w-full h-auto block"
+                          alt="AI Generated" 
+                          draggable="false"
+                          @load="imageLoading = false"
+                          @loadstart="imageLoading = true" />
+                      </transition>
+                      
+                      <!-- 加载指示器 -->
+                      <div v-if="imageLoading" 
+                        class="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-10">
+                        <Loader2 class="w-6 h-6 text-blue-600 animate-spin" />
+                      </div>
 
                       <!-- AI 生成提示（贴近截图样式） -->
                       <div
@@ -467,6 +481,8 @@ const currentPhoneStyleIndex = ref(0)
 const currentImageIndex = ref(0)
 const maxStepIndex = ref(-1)
 const maxProgress = ref(0)
+const preloadedImages = ref(new Set()) // 已预加载的图片URL集合
+const imageLoading = ref(false) // 当前图片加载状态
 
 // 监听进度变化，记录达到的最高进度，防止在循环步骤中跳跃
 watch(() => workflowStatus.value.progress, (newProgress) => {
@@ -692,7 +708,14 @@ const refreshTrending = async () => {
 
 const switchPhoneImage = () => {
   if (analysisStore.imageUrls && analysisStore.imageUrls.length > 0) {
-    currentImageIndex.value = (currentImageIndex.value + 1) % analysisStore.imageUrls.length
+    // 预加载下一张图片（如果还没加载）
+    const nextIndex = (currentImageIndex.value + 1) % analysisStore.imageUrls.length
+    const nextUrl = analysisStore.imageUrls[nextIndex]
+    if (nextUrl && !preloadedImages.value.has(nextUrl)) {
+      preloadImages([nextUrl]).catch(err => console.warn('[HomeView] 预加载下一张图片失败:', err))
+    }
+    // 切换图片
+    currentImageIndex.value = nextIndex
   } else {
     currentPhoneStyleIndex.value = (currentPhoneStyleIndex.value + 1) % phoneStyles.length
   }
@@ -750,6 +773,13 @@ const onPhonePointerUp = (e) => {
       const next = dx < 0
         ? (currentImageIndex.value + 1) % len
         : (currentImageIndex.value - 1 + len) % len
+      
+      // 预加载目标图片（如果还没加载）
+      const nextUrl = analysisStore.imageUrls[next]
+      if (nextUrl && !preloadedImages.value.has(nextUrl)) {
+        preloadImages([nextUrl]).catch(err => console.warn('[HomeView] 手势切换预加载失败:', err))
+      }
+      
       currentImageIndex.value = next
     }
   }
@@ -916,12 +946,52 @@ watch(() => analysisStore.finalCopy, (newCopy) => {
   }
 }, { deep: true })
 
-// 监听图片列表变化：新一批图片到达时从第一张开始展示
-watch(() => analysisStore.imageUrls.length, (newLen) => {
+// 图片预加载函数
+const preloadImages = async (urls) => {
+  if (!urls || urls.length === 0) return
+  
+  console.log('[HomeView] 🖼️ 开始预加载图片，数量:', urls.length)
+  const promises = urls.map((url) => {
+    if (preloadedImages.value.has(url)) {
+      return Promise.resolve() // 已预加载，跳过
+    }
+    
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => {
+        preloadedImages.value.add(url)
+        resolve()
+      }
+      img.onerror = () => {
+        console.warn('[HomeView] 图片预加载失败:', url)
+        resolve() // 即使失败也继续，避免阻塞
+      }
+      img.src = url
+    })
+  })
+  
+  await Promise.all(promises)
+  console.log('[HomeView] ✅ 图片预加载完成，已缓存:', preloadedImages.value.size, '张')
+}
+
+// 监听图片列表变化：新一批图片到达时从第一张开始展示并预加载
+watch(() => analysisStore.imageUrls.length, async (newLen, oldLen) => {
   if (newLen > 0) {
     currentImageIndex.value = 0
+    // 如果图片列表更新，清空旧的预加载缓存并重新预加载
+    if (newLen !== oldLen) {
+      preloadedImages.value.clear()
+      await preloadImages(analysisStore.imageUrls)
+    }
   }
 })
+
+// 监听图片URL数组变化（深度监听，确保URL变化时也触发预加载）
+watch(() => analysisStore.imageUrls, async (newUrls) => {
+  if (newUrls && newUrls.length > 0) {
+    await preloadImages(newUrls)
+  }
+}, { deep: true })
 
 const copyToClipboard = async () => {
   try {
@@ -1000,5 +1070,27 @@ onMounted(() => {
   50% {
     opacity: 0.4;
   }
+}
+
+/* 图片切换过渡效果 */
+.image-fade-enter-active,
+.image-fade-leave-active {
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+.image-fade-enter-from {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.image-fade-leave-to {
+  opacity: 0;
+  transform: scale(1.05);
+}
+
+.image-fade-enter-to,
+.image-fade-leave-from {
+  opacity: 1;
+  transform: scale(1);
 }
 </style>
