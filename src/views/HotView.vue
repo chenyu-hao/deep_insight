@@ -247,7 +247,8 @@ const platformList = ref([
     { id: 'baidu', name: '百度' },
     { id: 'tieba', name: '贴吧' },
     { id: 'kuaishou', name: '快手' },
-    { id: 'zhihu', name: '知乎' }
+    { id: 'zhihu', name: '知乎' },
+    { id: 'hn', name: 'Hacker News' }
 ])
 
 const categoryList = ref([
@@ -409,7 +410,8 @@ const getPlatformName = (platformId) => {
         'baidu': '百度',
         'tieba': '贴吧',
         'kuaishou': '快手',
-        'zhihu': '知乎'
+        'zhihu': '知乎',
+        'hn': 'Hacker News'
     }
     return map[platformId] || platformId
 }

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from typing import Optional, List
+from loguru import logger
 from app.schemas import (
     NewsRequest, AgentState, ConfigResponse, ConfigUpdateRequest,
     OutputFileListResponse, OutputFileInfo, OutputFileContentResponse,
@@ -13,6 +14,7 @@ from app.schemas import (
 from app.services.workflow import app_graph
 from app.services.workflow_status import workflow_status
 from app.services.tophub_collector import tophub_collector
+from app.services.hn_hot_collector import hn_hot_collector
 from app.services.hot_news_scheduler import hot_news_scheduler
 from app.config import settings
 from pathlib import Path
@@ -315,6 +317,66 @@ async def get_hot_news(limit: int = 10, source: str = "hot", force_refresh: bool
     }
 
 
+@router.get("/hotnews/hn")
+async def get_hn_news(limit: int = 30, story_type: str = "top", force_refresh: bool = False):
+    """获取 Hacker News 热榜数据。
+
+    - limit: 返回条数上限（1-100），支持前30/50条
+    - story_type: "top"=最热；"best"=最佳；"new"=最新
+    - force_refresh: True 时跳过缓存，立即抓取
+    """
+    limit = max(1, min(100, int(limit)))
+    story_type = (story_type or "top").strip().lower()
+    
+    if story_type not in ["top", "best", "new"]:
+        story_type = "top"
+
+    try:
+        result = await hn_hot_collector.collect_news(
+            source_ids=[story_type],
+            max_items=limit,
+            force_refresh=force_refresh,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"HN 热榜抓取失败: {str(e)}")
+
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "未知错误"))
+
+    news_list = result.get("news_list", []) or []
+
+    items = []
+    for item in news_list:
+        title = (item.get("title") or "").strip()
+        url = (item.get("url") or "").strip()
+        if not title or not url:
+            continue
+        items.append({
+            "title": title,
+            "url": url,
+            "rank": item.get("rank"),
+            "hot_value": item.get("hot_value"),
+            "source": item.get("source"),
+            "source_id": item.get("source_id"),
+            "score": item.get("score"),
+            "descendants": item.get("descendants"),
+            "author": item.get("author"),
+            "posted_time": item.get("posted_time"),
+        })
+        if len(items) >= limit:
+            break
+
+    return {
+        "success": True,
+        "items": items,
+        "total": len(items),
+        "story_type": story_type,
+        "source": "hackernews",
+        "from_cache": result.get("from_cache", False),
+        "collection_time": result.get("collection_time"),
+    }
+
+
 @router.get("/workflow/status", response_model=WorkflowStatusResponse)
 async def get_workflow_status():
     """获取当前工作流状态"""
@@ -567,6 +629,9 @@ async def collect_hot_news(request: HotNewsCollectRequest):
         request.force_refresh: 是否强制刷新（忽略缓存）
     """
     try:
+        logger.info("=" * 80)
+        logger.info(f"🎯 收到热榜请求: platforms={request.platforms}, force_refresh={request.force_refresh}")
+        
         # 平台名称映射关系 (前端ID → 后端source字段值)
         platform_mapping = {
             'weibo': '微博热搜榜',
@@ -580,32 +645,126 @@ async def collect_hot_news(request: HotNewsCollectRequest):
             'hot': '全平台热榜'  # 全榜聚合
         }
         
+        logger.info("📡 步骤1: 调用 tophub_collector.collect_news()")
         result = await tophub_collector.collect_news(force_refresh=request.force_refresh)
+        logger.info(f"   ✓ TopHub返回: success={result['success']}, from_cache={result.get('from_cache', False)}")
         
         # 按平台分组
         from collections import defaultdict
         from datetime import datetime
         news_by_platform = defaultdict(list)
         news_list = result.get('news_list', [])
+        logger.info(f"   ✓ 初始 news_list 长度: {len(news_list)}")
+        
+        # 统计初始 source 分布
+        if news_list:
+            source_count = {}
+            for news in news_list[:10]:  # 只统计前10条
+                source = news.get('source', 'Unknown')
+                source_count[source] = source_count.get(source, 0) + 1
+            logger.info(f"   ✓ 前10条source分布: {source_count}")
         
         # 获取收集时间用作所有新闻的时间戳
         collection_time = result.get('collection_time', datetime.now().isoformat())
+
+        # 如果包括 HN 平台，获取 HN 数据
+        # 注意：如果是从缓存加载的，news_list 可能已经包含 HN 数据，需要先过滤掉避免重复
+        if request.platforms and ('hn' in request.platforms or 'all' in request.platforms):
+            logger.info(f"📡 步骤2: 处理 HN 平台数据 (force_refresh={request.force_refresh})")
+            
+            # 先移除 news_list 中已存在的 HN 数据（避免重复添加）
+            original_len = len(news_list)
+            news_list = [news for news in news_list if news.get('source') != 'Hacker News']
+            removed_count = original_len - len(news_list)
+            if removed_count > 0:
+                logger.info(f"   ✓ 移除了 {removed_count} 条已存在的 HN 数据")
+            
+            logger.info(f"   → 调用 hn_hot_collector.collect_news(force_refresh={request.force_refresh})")
+            hn_result = await hn_hot_collector.collect_news(
+                source_ids=['top', 'best', 'new'],
+                max_items=30,
+                force_refresh=request.force_refresh
+            )
+            if hn_result.get('success'):
+                hn_news = hn_result.get('news_list', [])
+                from_cache = hn_result.get('from_cache', False)
+                logger.info(f"   ✓ HN返回: {len(hn_news)} 条新闻 (from_cache={from_cache})")
+                
+                # 为 HN 新闻添加 source 字段用于分组
+                for news in hn_news:
+                    news['source'] = 'Hacker News'
+                    if 'timestamp' not in news:
+                        news['timestamp'] = hn_result.get('collection_time', datetime.now().isoformat())
+                news_list.extend(hn_news)
+                logger.info(f"   ✓ 添加HN后 news_list 长度: {len(news_list)}")
+            else:
+                logger.warning(f"   ✗ HN数据获取失败")
+        else:
+            logger.info("📡 步骤2: 跳过 HN 平台（未请求）")
         
         # 如果指定了平台，进行过滤
         if request.platforms and 'all' not in request.platforms:
+            logger.info(f"🔍 步骤3: 开始过滤平台，请求的平台: {request.platforms}")
+            logger.info(f"   ✓ 过滤前 news_list 长度: {len(news_list)}")
+            
             # 将前端平台ID转换为后端的source名称
             target_sources = set()
+            target_platforms = set()  # 用于匹配全平台热榜的 platform 字段
+            
+            # 平台ID到平台简称的映射（用于全平台热榜的 platform 字段）
+            platform_short_names = {
+                'weibo': '微博',
+                'bilibili': 'B站',
+                'douyin': '抖音',
+                'baidu': '百度',
+                'tieba': '贴吧',
+                'kuaishou': '快手',
+                'zhihu': '知乎',
+                'xhs': '小红书',
+            }
+            
             for platform_id in request.platforms:
                 if platform_id in platform_mapping:
                     target_sources.add(platform_mapping[platform_id])
+                    # 同时添加对应的平台简称（用于全平台热榜）
+                    if platform_id in platform_short_names:
+                        target_platforms.add(platform_short_names[platform_id])
+                elif platform_id == 'hn':
+                    target_sources.add('Hacker News')
+                elif platform_id == 'hot':
+                    target_sources.add('全平台热榜')
             
-            # 过滤新闻列表，只保留指定平台的新闻
+            logger.info(f"   ✓ 目标source: {target_sources}")
+            logger.info(f"   ✓ 目标platform: {target_platforms}")
+            
+            # 过滤新闻列表，保留：
+            # 1. source 匹配的（单独平台榜单）
+            # 2. source 是"全平台热榜"且 platform 匹配的（全榜中的该平台新闻）
             filtered_news_list = []
             for news in news_list:
-                if news.get('source', '') in target_sources:
+                source = news.get('source', '')
+                platform = news.get('platform', '')
+                
+                # 直接匹配 source（单独榜单）
+                if source in target_sources:
                     filtered_news_list.append(news)
+                # 或者是全平台热榜，且 platform 字段匹配
+                elif source == '全平台热榜' and platform in target_platforms:
+                    filtered_news_list.append(news)
+            
+            logger.info(f"   ✓ 过滤后 news_list 长度: {len(filtered_news_list)}")
+            
+            if len(filtered_news_list) == 0 and len(news_list) > 0:
+                # 输出前5条新闻的 source 和 platform 字段用于调试
+                logger.warning("   ⚠️  过滤结果为空，显示前5条新闻的字段:")
+                for i, news in enumerate(news_list[:5]):
+                    logger.warning(f"      [{i+1}] source='{news.get('source')}', platform='{news.get('platform')}'")
+            
             news_list = filtered_news_list
+        else:
+            logger.info("🔍 步骤3: 跳过过滤（请求所有平台）")
         
+        logger.info(f"📊 步骤4: 处理全平台热榜的 platform 字段（从URL提取）")
         # 对于全平台热榜，从URL提取平台信息
         url_to_platform_map = {
             'zhihu.com': '知乎',
@@ -630,6 +789,7 @@ async def collect_hot_news(request: HotNewsCollectRequest):
                     news['platform'] = '其他平台'
         
         # 按平台分组新闻
+        logger.info(f"📊 步骤5: 按平台分组并添加时间戳")
         for news in news_list:
             platform = news.get('source', '未知平台')
             # 为每条新闻添加时间戳（如果没有的话）
@@ -637,11 +797,16 @@ async def collect_hot_news(request: HotNewsCollectRequest):
                 news['timestamp'] = collection_time
             news_by_platform[platform].append(news)
         
+        logger.info(f"   ✓ 分组完成，共 {len(news_by_platform)} 个平台")
+        
         # 转换为字典格式，方便前端使用
         platform_news = {
             platform: sorted(news_list, key=lambda x: x.get('rank', 999))
             for platform, news_list in news_by_platform.items()
         }
+        
+        logger.info(f"✅ 请求处理完成，返回 {len(news_list)} 条新闻")
+        logger.info("=" * 80)
         
         return {
             "success": result['success'],
@@ -725,12 +890,23 @@ async def get_supported_platforms():
             "name": name,
             "supported": False
         })
-    
+
+    # 添加 HN 平台
+    platforms.append({
+        "source_id": "hn",
+        "name": "Hacker News",
+        "category": "tech",
+        "platform": "Hacker News",
+        "priority": 5,
+        "supported": True,
+        "description": "全球最大的科技新闻聚合社区"
+    })
+
     # 按优先级排序
     platforms.sort(key=lambda x: x.get('priority', 999))
-    
+
     return {
         "platforms": platforms,
-        "total_supported": len(TOPHUB_SOURCES),
+        "total_supported": len(TOPHUB_SOURCES) + 1,
         "total_pending": len(PENDING_PLATFORMS)
     }

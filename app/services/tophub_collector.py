@@ -9,6 +9,7 @@ TopHub 全网热点新闻收集器
 import asyncio
 import httpx
 import re
+import os
 from datetime import datetime
 from typing import List, Dict, Optional
 from loguru import logger
@@ -56,16 +57,37 @@ class TopHubCollector:
         """
         self.base_url = "https://tophub.today"
         self.use_cache = use_cache
+        # 完整的浏览器指纹头，与实际浏览器完全一致
         self.headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
+                "Chrome/143.0.0.0 Safari/537.36"
             ),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Language": "zh-CN,zh-HK;q=0.9,zh;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br, zstd",
             "Referer": "https://tophub.today/",
+            "Sec-Ch-Ua": '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": "Windows",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Upgrade-Insecure-Requests": "1",
         }
+        
+        # 从环境变量读取代理设置
+        self.proxy = None
+        http_proxy = os.getenv('HTTP_PROXY') or os.getenv('http_proxy')
+        https_proxy = os.getenv('HTTPS_PROXY') or os.getenv('https_proxy')
+        if http_proxy or https_proxy:
+            # 优先使用 https，其次 http
+            self.proxy = https_proxy or http_proxy
+            logger.info(f"已配置代理: {self.proxy}")
+        
+        # 尝试加载浏览器 Cookie
+        self._load_cookies()
         
         # 导入缓存服务
         if self.use_cache:
@@ -73,6 +95,24 @@ class TopHubCollector:
             self.cache_service = hot_news_cache
         else:
             self.cache_service = None
+    
+    def _load_cookies(self):
+        """从文件加载浏览器 Cookie"""
+        from pathlib import Path
+        cookie_file = Path("tophub_cookies.txt")
+        
+        if cookie_file.exists():
+            try:
+                cookie_str = cookie_file.read_text(encoding='utf-8').strip()
+                if cookie_str:
+                    self.headers["Cookie"] = cookie_str
+                    logger.info(f"✅ 已加载 TopHub Cookie ({len(cookie_str)} 字符)")
+                else:
+                    logger.warning("⚠️  Cookie 文件为空")
+            except Exception as e:
+                logger.warning(f"⚠️  读取 Cookie 失败: {e}")
+        else:
+            logger.info("ℹ️  未找到 Cookie 文件 (tophub_cookies.txt)，如遇 403 请提取浏览器 Cookie")
     
     async def fetch_source_news(self, source_id: str) -> Dict:
         """
@@ -90,7 +130,12 @@ class TopHubCollector:
         url = f"{self.base_url}/hot" if source_id == "hot" else f"{self.base_url}/n/{source_id}"
         
         try:
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            # 发送请求
+            async with httpx.AsyncClient(
+                timeout=30.0,
+                follow_redirects=True,
+                proxy=self.proxy
+            ) as client:
                 response = await client.get(url, headers=self.headers)
                 response.raise_for_status()
                 
@@ -289,7 +334,7 @@ class TopHubCollector:
         """
         # 如果不强制刷新，尝试从缓存读取
         if not force_refresh and self.use_cache and self.cache_service:
-            cached_data = self.cache_service.get_cached_data()
+            cached_data = self.cache_service.get_cached_data(cache_key='tophub')
             if cached_data:
                 logger.info("📦 使用缓存数据")
                 return cached_data
@@ -378,7 +423,7 @@ class TopHubCollector:
             
             # 保存到缓存
             if self.use_cache and self.cache_service:
-                self.cache_service.save_to_cache(result_data)
+                self.cache_service.save_to_cache(result_data, cache_key='tophub')
             
             return result_data
             
