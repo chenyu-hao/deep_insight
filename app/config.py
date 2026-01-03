@@ -70,6 +70,12 @@ class Config:
             {"provider": "moonshot", "model": MOONSHOT_MODEL},
             {"provider": "doubao", "model": DOUBAO_MODEL},
         ],
+        # --- Translation / Query Builder Agent ---
+        # Used in workflow.py to translate CN topic -> EN search query.
+        "translator": [
+            {"provider": "deepseek", "model": DEEPSEEK_MODEL},
+            {"provider": "moonshot", "model": MOONSHOT_MODEL},
+        ],
     }
 
     # --- Workflow Settings ---

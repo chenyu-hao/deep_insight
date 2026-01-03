@@ -199,12 +199,6 @@
                                             </span>
                                         </div>
                                         <p class="text-sm text-slate-700 whitespace-pre-line">{{ topicInsight.diffusion_summary }}</p>
-                                        <div v-if="topicInsight.trace_steps && topicInsight.trace_steps.length" class="mt-3">
-                                            <div class="text-xs font-bold text-slate-500 mb-1">分析链路</div>
-                                            <ul class="list-disc list-inside text-sm text-slate-600 space-y-1">
-                                                <li v-for="(x, i) in topicInsight.trace_steps" :key="`s-${i}`">{{ x }}</li>
-                                            </ul>
-                                        </div>
                                         <div v-if="topicInsight.divergence_points && topicInsight.divergence_points.length" class="mt-3">
                                             <div class="text-xs font-bold text-slate-500 mb-1">分歧点</div>
                                             <ul class="list-disc list-inside text-sm text-slate-600 space-y-1">
@@ -241,6 +235,21 @@
                                         暂无来源链接
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- Trace (optional, placed at the very end) -->
+                            <div v-if="topicInsight && topicInsight.trace_steps && topicInsight.trace_steps.length">
+                                <details class="rounded-xl border border-slate-100 bg-white/60 p-3">
+                                    <summary class="cursor-pointer text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        过程信息（可选）
+                                    </summary>
+                                    <div class="mt-2 text-sm text-slate-700">
+                                        <div class="text-xs font-bold text-slate-500 mb-1">分析链路</div>
+                                        <ul class="list-disc list-inside text-sm text-slate-600 space-y-1">
+                                            <li v-for="(x, i) in topicInsight.trace_steps" :key="`s-${i}`">{{ x }}</li>
+                                        </ul>
+                                    </div>
+                                </details>
                             </div>
                         </div>
                         <div v-else class="mt-5 text-center py-8 text-slate-400">

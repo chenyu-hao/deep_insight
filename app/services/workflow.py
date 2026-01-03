@@ -33,8 +33,8 @@ async def _translate_topic_to_english_search_query(topic: str) -> Optional[str]:
 
     translator_llm = None
     try:
-        # Reuse existing resilient LLM config; no new config required.
-        translator_llm = get_agent_llm("reporter")
+        # Use a dedicated translator/query-builder agent for clearer separation of concerns.
+        translator_llm = get_agent_llm("translator")
     except Exception:
         translator_llm = None
 
