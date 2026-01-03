@@ -79,12 +79,14 @@ class TopHubCollector:
         
         # 从环境变量读取代理设置
         self.proxy = None
-        http_proxy = os.getenv('HTTP_PROXY') or os.getenv('http_proxy')
-        https_proxy = os.getenv('HTTPS_PROXY') or os.getenv('https_proxy')
-        if http_proxy or https_proxy:
-            # 优先使用 https，其次 http
-            self.proxy = https_proxy or http_proxy
-            logger.info(f"已配置代理: {self.proxy}")
+        # TODO: 暂时禁用代理配置，等待代理问题解决后恢复
+        # http_proxy = os.getenv('HTTP_PROXY') or os.getenv('http_proxy')
+        # https_proxy = os.getenv('HTTPS_PROXY') or os.getenv('https_proxy')
+        # if http_proxy or https_proxy:
+        #     # 优先使用 https，其次 http
+        #     self.proxy = https_proxy or http_proxy
+        #     logger.info(f"已配置代理: {self.proxy}")
+        logger.info("代理已暂时禁用，直接连接")
         
         # 尝试加载浏览器 Cookie
         self._load_cookies()
