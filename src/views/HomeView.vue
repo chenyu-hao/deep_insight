@@ -86,24 +86,25 @@
         <h3 class="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
           <Activity class="w-4 h-4 text-blue-600" /> 工作流进度
         </h3>
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <!-- 6步仍保持一行：提高列数 + 压缩卡片尺寸 -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
           <div v-for="step in workflowSteps" :key="step.key" :class="[
-            'p-3 rounded-lg border-2 transition-all',
+            'px-2 py-2.5 min-h-[64px] rounded-lg border-2 transition-all',
             getStepClass(step.key)
           ]">
-            <div class="flex items-center gap-2 mb-1">
-              <component :is="step.icon" :class="['w-4 h-4', getStepIconClass(step.key)]" />
-              <span class="text-xs font-bold" :class="getStepTextClass(step.key)">
+            <div class="flex items-center gap-1.5 mb-0.5">
+              <component :is="step.icon" :class="['w-3.5 h-3.5', getStepIconClass(step.key)]" />
+              <span class="text-[11px] font-bold leading-tight" :class="getStepTextClass(step.key)">
                 {{ step.name }}
               </span>
             </div>
-            <div class="text-[10px] text-slate-400 mt-1">
+            <div class="text-[9px] text-slate-400 mt-1.5 leading-tight">
               <span
                 v-if="step.key === 'crawler_agent' && workflowStatus.current_step === 'crawler_agent' && workflowStatus.current_platform"
-                class="text-blue-600 font-bold platform-crawling">
+                class="text-blue-600 font-bold platform-crawling line-clamp-1">
                 正在爬取 {{ workflowStatus.current_platform }}...
               </span>
-              <span v-else>{{ step.description }}</span>
+              <span v-else class="line-clamp-1">{{ step.description }}</span>
             </div>
           </div>
         </div>
@@ -138,7 +139,7 @@
                 <span class="text-slate-400 font-normal text-[10px]">{{ activeModelDisplay }}</span>
               </div>
               <div
-                class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-4 font-mono text-sm bg-white/50 relative scroll-smooth">
+                class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-4 text-sm bg-white/50 relative scroll-smooth">
                 <!-- 调试信息 -->
                 <div v-if="false" class="text-xs text-red-500 p-2 bg-red-50 mb-2">
                   调试: debateLogs.length={{ debateLogs.length }}, storeLogs.length={{ storeLogs.length }}

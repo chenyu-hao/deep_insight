@@ -276,7 +276,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
     Flame, RefreshCw, Sparkles, Search, ArrowUpDown, Globe, AlertCircle
 } from 'lucide-vue-next'
@@ -492,7 +492,9 @@ const classifyTopic = (title) => {
 
 // Computed
 const filteredTopics = computed(() => {
-    let result = topics.value
+    // IMPORTANT: do not sort() the reactive source array in-place.
+    // Always copy first to avoid mutating topics.value and causing subtle UI/state bugs.
+    let result = Array.isArray(topics.value) ? topics.value.slice() : []
 
     // Local platform filter (avoid re-requesting backend when switching tabs)
     if (selectedPlatform.value !== 'all') {
@@ -536,6 +538,20 @@ const filteredTopics = computed(() => {
     })
 
     return result
+})
+
+// Cleanup timers on unmount (avoid leaks when switching tabs)
+onUnmounted(() => {
+    try {
+        if (debounceTimer.value) {
+            clearTimeout(debounceTimer.value)
+            debounceTimer.value = null
+        }
+        if (refreshPollTimer.value) {
+            clearTimeout(refreshPollTimer.value)
+            refreshPollTimer.value = null
+        }
+    } catch (_) { /* ignore */ }
 })
 
 // Methods

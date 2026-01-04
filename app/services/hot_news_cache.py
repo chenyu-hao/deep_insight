@@ -137,12 +137,15 @@ class HotNewsCacheService:
     
     def get_cache_info(self) -> Dict:
         """获取缓存信息"""
+        keys = sorted(list(self._memory_caches.keys()))
+        latest_time = None
+        if self._cache_times:
+            latest_time = max(self._cache_times.values())
         return {
-            'has_cache': self._memory_cache is not None,
-            'cache_time': self._cache_time.isoformat() if self._cache_time else None,
-            'is_expired': self.is_cache_expired(),
-            'cache_file': str(self._get_cache_file_path()),
-            'expiry_minutes': self.cache_expiry_minutes,
+            "has_cache": bool(self._memory_caches),
+            "cache_keys": keys,
+            "latest_cache_time": latest_time.isoformat() if latest_time else None,
+            "expiry_minutes": self.cache_expiry_minutes,
         }
     
     def cleanup_old_caches(self, keep_days: int = 7):
