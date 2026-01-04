@@ -81,6 +81,19 @@ class Config:
     # --- Workflow Settings ---
     DEBATE_MAX_ROUNDS = 4 # Maximum number of debate rounds between Analyst and Debater
 
+    # --- Workflow Content Safety (backend-only) ---
+    # Goal: prevent political-sensitive signals from appearing in workflow outputs (logs/insight/copy).
+    # This is intentionally NOT exposed to the frontend.
+    #
+    # Recommended defaults:
+    # - redact_politics: True  -> scrub political entities/terms from generated outputs
+    # - block_political_topics: True -> if the user topic is deemed political, short-circuit workflow and return a safe message
+    WORKFLOW_CONTENT_SAFETY = {
+        "redact_politics": True,
+        "block_political_topics": True,
+        "redaction_token": "【已脱敏】",
+    }
+
     # --- Crawler Settings ---
     # Default platforms to search if none provided
     # Options: "wb", "dy", "ks", "bili", "tieba", "zhihu", "xhs"

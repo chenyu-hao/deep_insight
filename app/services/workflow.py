@@ -14,6 +14,68 @@ from app.services.image_generator import image_generator_service
 _CJK_RE = re.compile(r"[\u4e00-\u9fff]")
 _ASCII_LETTER_RE = re.compile(r"[A-Za-z]")
 
+# --- Workflow Content Safety (political redaction / blocking) ---
+# This is a backend-only safety layer, controlled by settings.WORKFLOW_CONTENT_SAFETY.
+_POLITICAL_RE = re.compile(
+    r"("
+    # CN
+    r"习近平|中共|共产党|国安|外交部|国务院|人大|政协|政府|政党|"
+    r"总统|总理|首相|国会|参议院|众议院|白宫|克里姆林宫|联合国|北约|"
+    r"选举|大选|政变|制裁|战争|袭击|空袭|导弹|军队|入侵|"
+    r"台湾|台独|香港|乌克兰|俄罗斯|以色列|巴勒斯坦|哈马斯|"
+    r"特朗普|拜登|普京|泽连斯基|内塔尼亚胡|马杜罗|"
+    # EN
+    r"Trump|Biden|Putin|Zelensky|Maduro|Netanyahu|"
+    r"White\s+House|Kremlin|United\s+Nations|UN\b|NATO\b|"
+    r"election|president|prime\s+minister|government|parliament|congress|senate|"
+    r"sanction|strike|airstrike|missile|troops|invasion|war"
+    r")",
+    flags=re.IGNORECASE,
+)
+
+
+def _safety_cfg() -> Dict[str, Any]:
+    cfg = getattr(settings, "WORKFLOW_CONTENT_SAFETY", None) or {}
+    return {
+        "redact_politics": bool(cfg.get("redact_politics", True)),
+        "block_political_topics": bool(cfg.get("block_political_topics", True)),
+        "redaction_token": str(cfg.get("redaction_token", "【已脱敏】")),
+    }
+
+
+def _looks_political(text: str) -> bool:
+    if not text:
+        return False
+    return bool(_POLITICAL_RE.search(text))
+
+
+def _redact_political(text: str) -> str:
+    """Best-effort redaction to remove political signals from text."""
+    if not text:
+        return text
+    cfg = _safety_cfg()
+    if not cfg["redact_politics"]:
+        return text
+    token = cfg["redaction_token"]
+
+    matches = list(_POLITICAL_RE.finditer(text))
+    # If heavily political, replace whole content to avoid leaking signals via context.
+    if len(matches) >= 6:
+        return "（内容涉及敏感政治话题，已按后台安全策略隐藏）"
+    return _POLITICAL_RE.sub(token, text)
+
+
+def _with_safety_instruction(base_prompt: str) -> str:
+    cfg = _safety_cfg()
+    if not cfg["redact_politics"]:
+        return base_prompt
+    return (
+        base_prompt
+        + "\n\n"
+        + "【安全要求】输出中不得出现政治敏感信号（人物/国家机构/战争选举等具体指称）。"
+        + "如不可避免，请使用抽象替代（如“某国”“某政府部门”“某领导人”），避免点名与敏感词。"
+    )
+
 
 def _contains_cjk(text: str) -> bool:
     return bool(text and _CJK_RE.search(text))
@@ -128,6 +190,9 @@ class GraphState(TypedDict):
     output_file: Optional[str]
     messages: List[str] # Keep for SSE compatibility
     debate_history: List[str] # Track the debate process
+    # Safety control (backend-only)
+    safety_blocked: bool
+    safety_reason: Optional[str]
 
 # --- 2. LLM Setup ---
 # LLMs are now retrieved via get_agent_llm() inside nodes or globally if preferred.
@@ -236,6 +301,24 @@ async def crawler_agent_node(state: GraphState):
     print("--- CRAWLER AGENT ---")
     topic = state["topic"]
     platforms = state.get("platforms", [])
+
+    # Backend-only safety gate: block political topics early to avoid generating political signals.
+    cfg = _safety_cfg()
+    if cfg["block_political_topics"] and _looks_political(topic):
+        safe_msg = "安全模式已开启：检测到敏感政治话题，工作流已自动停止生成内容。"
+        print(f"[SAFETY] Blocked political topic: {topic!r}")
+        return {
+            "crawler_data": [],
+            "platform_data": {},
+            "news_content": "（内容已按安全策略隐藏）",
+            "initial_analysis": "（内容已按安全策略隐藏）",
+            "final_copy": "TITLE: 内容已隐藏\nCONTENT: 该话题涉及敏感政治内容，已按后台安全策略停止生成。",
+            "image_urls": [],
+            "messages": [safe_msg],
+            "debate_history": [],
+            "safety_blocked": True,
+            "safety_reason": "politics",
+        }
     
     print(f"[CRAWLER] 接收到的平台参数: {platforms} (类型: {type(platforms)})")
     
@@ -349,7 +432,7 @@ async def crawler_agent_node(state: GraphState):
         return {
             "crawler_data": unique_data,
             "platform_data": platform_data,
-            "messages": [msg]
+            "messages": [_redact_political(msg)]
         }
         
     except Exception as e:
@@ -363,6 +446,11 @@ async def crawler_agent_node(state: GraphState):
 
 async def reporter_node(state: GraphState):
     print("--- REPORTER ---")
+    if state.get("safety_blocked"):
+        return {
+            "news_content": "（内容已按安全策略隐藏）",
+            "messages": ["Reporter: （内容已按安全策略隐藏）"],
+        }
     topic = state["topic"]
     crawler_data = state.get("crawler_data", [])
     platform_data = state.get("platform_data", {})
@@ -400,11 +488,13 @@ async def reporter_node(state: GraphState):
         source_info = "Simulation"
 
     messages = [
-        SystemMessage(content=REPORTER_PROMPT),
-        HumanMessage(content=f"主题: {topic}. 来源: {source_info}.\n\n内容:\n{content_text}\n\n请总结核心事实。")
+        SystemMessage(content=_with_safety_instruction(REPORTER_PROMPT)),
+        HumanMessage(
+            content=f"主题: {_redact_political(topic)}. 来源: {source_info}.\n\n内容:\n{content_text}\n\n请总结核心事实。"
+        ),
     ]
     response = await llm.ainvoke(messages)
-    content = extract_text_content(response.content)
+    content = _redact_political(extract_text_content(response.content))
     return {
         "news_content": content,
         "messages": [f"Reporter: {content}"]
@@ -412,6 +502,15 @@ async def reporter_node(state: GraphState):
 
 async def analyst_node(state: GraphState):
     print("--- ANALYST ---")
+    if state.get("safety_blocked"):
+        content = "（内容已按安全策略隐藏）"
+        history = state.get("debate_history", [])
+        history.append(f"### Analyst\n{content}\n")
+        return {
+            "initial_analysis": content,
+            "messages": [f"Analyst: {content}"],
+            "debate_history": history,
+        }
     news_content = state["news_content"]
     critique = state.get("critique")
     llm = get_agent_llm("analyst")
@@ -428,11 +527,11 @@ async def analyst_node(state: GraphState):
     # If no critique, this is the first round, so revision_count stays 0
         
     messages = [
-        SystemMessage(content=ANALYST_PROMPT),
-        HumanMessage(content=prompt)
+        SystemMessage(content=_with_safety_instruction(ANALYST_PROMPT)),
+        HumanMessage(content=_redact_political(prompt)),
     ]
     response = await llm.ainvoke(messages)
-    content = extract_text_content(response.content)
+    content = _redact_political(extract_text_content(response.content))
     
     # Update history
     history = state.get("debate_history", [])
@@ -447,6 +546,15 @@ async def analyst_node(state: GraphState):
 
 async def debater_node(state: GraphState):
     print("--- DEBATER ---")
+    if state.get("safety_blocked"):
+        content = "（内容已按安全策略隐藏）"
+        history = state.get("debate_history", [])
+        history.append(f"### Debater\n{content}\n")
+        return {
+            "critique": content,
+            "messages": [f"Debater: {content}"],
+            "debate_history": history,
+        }
     analysis = state["initial_analysis"]
     topic = state["topic"]
     news_content = state["news_content"]
@@ -461,11 +569,15 @@ async def debater_node(state: GraphState):
         prompt_suffix = f"\n\n当前是最后一轮辩论。如果分析已经足够好，可以回复 PASS。"
 
     messages = [
-        SystemMessage(content=DEBATER_PROMPT),
-        HumanMessage(content=f"主题: {topic}\n\n新闻事实: {news_content}\n\n分析师观点: {analysis}{prompt_suffix}\n\n请根据事实审查该分析。")
+        SystemMessage(content=_with_safety_instruction(DEBATER_PROMPT)),
+        HumanMessage(
+            content=_redact_political(
+                f"主题: {topic}\n\n新闻事实: {news_content}\n\n分析师观点: {analysis}{prompt_suffix}\n\n请根据事实审查该分析。"
+            )
+        ),
     ]
     response = await llm.ainvoke(messages)
-    content = extract_text_content(response.content)
+    content = _redact_political(extract_text_content(response.content))
     
     # Update history
     history = state.get("debate_history", [])
@@ -479,21 +591,28 @@ async def debater_node(state: GraphState):
 
 async def writer_node(state: GraphState):
     print("--- WRITER ---")
+    if state.get("safety_blocked"):
+        content = "TITLE: 内容已隐藏\nCONTENT: 该话题涉及敏感政治内容，已按后台安全策略停止生成。"
+        return {
+            "final_copy": content,
+            "output_file": None,
+            "messages": [f"Writer: {content}"],
+        }
     analysis = state["initial_analysis"]
     topic = state["topic"]
     llm = get_agent_llm("writer")
     
     messages = [
-        SystemMessage(content=WRITER_PROMPT),
-        HumanMessage(content=f"请将此分析转化为小红书帖子：\n{analysis}")
+        SystemMessage(content=_with_safety_instruction(WRITER_PROMPT)),
+        HumanMessage(content=_redact_political(f"请将此分析转化为小红书帖子：\n{analysis}")),
     ]
     response = await llm.ainvoke(messages)
-    content = extract_text_content(response.content)
+    content = _redact_political(extract_text_content(response.content))
     
     # Save to Markdown file
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     # Sanitize topic for filename
-    safe_topic = re.sub(r'[\\/*?:"<>|]', "", topic)[:20] 
+    safe_topic = re.sub(r'[\\/*?:"<>|]', "", _redact_political(topic))[:20]
     filename = f"{timestamp}_{safe_topic}.md"
     output_dir = "outputs"
     os.makedirs(output_dir, exist_ok=True)
@@ -502,7 +621,7 @@ async def writer_node(state: GraphState):
     debate_history = "\n".join(state.get("debate_history", []))
     
     with open(file_path, "w", encoding="utf-8") as f:
-        f.write(f"# {topic}\n\n")
+        f.write(f"# {_redact_political(topic)}\n\n")
         f.write("## 最终文案\n\n")
         f.write(content)
         f.write("\n\n---\n\n")
@@ -517,6 +636,11 @@ async def writer_node(state: GraphState):
 
 async def image_generator_node(state: GraphState):
     print("--- IMAGE GENERATOR ---")
+    if state.get("safety_blocked"):
+        return {
+            "image_urls": [],
+            "messages": ["Image Generator: skipped by safety policy."],
+        }
     final_copy = state["final_copy"]
     output_file = state.get("output_file")
     
