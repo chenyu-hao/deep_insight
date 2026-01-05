@@ -139,10 +139,9 @@
                   <div class="min-w-0">
                     <h4 class="font-bold text-sm truncate text-slate-800">
                       {{ api.provider }}
-                      <span class="text-xs font-normal bg-slate-100 px-1 rounded text-slate-500">{{ api.model }}</span>
                     </h4>
                     <p class="text-xs text-slate-400 truncate font-mono">
-                      ...{{ api.key.substring(Math.max(0, api.key.length - 4)) }}
+                      ...{{ (api.key || '').substring(Math.max(0, (api.key || '').length - 4)) }}
                     </p>
                   </div>
                 </div>
@@ -165,6 +164,79 @@
               <p class="text-[10px] text-slate-300 mt-1">如需使用自定义 API Key，请在此配置</p>
             </div>
           </div>
+
+          <!-- Agent 绑定（最小操作：选择每个 Agent 用哪个厂商） -->
+          <div class="bg-slate-50 p-5 rounded-xl border border-slate-100">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-sm font-bold text-slate-700">Agent 模型绑定</h3>
+              <button @click="saveAgentOverrides"
+                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1">
+                <Save class="w-4 h-4" /> 保存绑定
+              </button>
+            </div>
+            <p class="text-xs text-slate-500 mb-4">为每个 Agent 选择一个厂商；未选择则使用后端默认（.env + 后端策略）。</p>
+            <div class="space-y-3">
+              <div v-for="a in agentList" :key="a.key" class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-slate-700">{{ a.name }}</div>
+                  <div class="text-[10px] text-slate-400">{{ a.desc }}</div>
+                </div>
+                <select v-model="agentOverrides[a.key]"
+                  class="min-w-[220px] px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 bg-white">
+                  <option value="">后端默认（推荐）</option>
+                  <option v-for="opt in providerOptions" :key="opt.key" :value="opt.key">
+                    {{ opt.name }}
+                  </option>
+                </select>
+              </div>
+            </div>
+            <div v-if="agentOverridesSaved"
+              class="mt-4 p-3 rounded-lg bg-green-50 border border-green-200 text-xs text-green-700 flex items-center gap-2">
+              <Check class="w-4 h-4" />
+              <span>Agent 绑定已保存</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 即梦 / 火山引擎 文生图配置 -->
+      <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+        <div class="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center gap-2 justify-between">
+          <div class="flex items-center gap-2">
+            <Image class="w-5 h-5 text-purple-600" />
+            <h2 class="font-bold text-slate-800">即梦（火山引擎文生图）配置</h2>
+          </div>
+          <span class="text-xs text-slate-400">用于工作流的图片生成节点</span>
+        </div>
+        <div class="p-6 md:p-8 space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">VOLC Access Key (AK)</label>
+              <input v-model="volcengine.access_key" type="password" placeholder="填写 AK（可选，未填则用后端 .env）"
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-500 font-mono" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">VOLC Secret Key (SK)</label>
+              <input v-model="volcengine.secret_key" type="password" placeholder="填写 SK（可选，未填则用后端 .env）"
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-500 font-mono" />
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-2">
+            <p class="text-[10px] text-slate-400">
+              未填写 AK/SK 时，后端会继续使用 `.env` 中的 VOLC_ACCESS_KEY / VOLC_SECRET_KEY。
+            </p>
+            <button @click="saveVolcengineConfig"
+              class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1">
+              <Save class="w-4 h-4" /> 保存即梦配置
+            </button>
+          </div>
+
+          <div v-if="volcengineSaved"
+            class="p-3 rounded-lg bg-green-50 border border-green-200 text-xs text-green-700 flex items-center gap-2">
+            <Check class="w-4 h-4" />
+            <span>即梦配置已保存</span>
+          </div>
         </div>
       </div>
     </div>
@@ -185,36 +257,20 @@
         <div class="p-6 space-y-4">
           <div>
             <label class="block text-xs font-semibold text-slate-500 mb-1">选择模型厂商</label>
-            <select v-model="formData.providerKey" @change="updateBaseUrl"
+            <select v-model="formData.providerKey" @change="updateProviderMeta"
               class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 bg-white">
               <option value="gemini">Gemini (Google)</option>
               <option value="deepseek">Deepseek (深度求索)</option>
               <option value="doubao">Doubao (字节豆包)</option>
               <option value="kimi">Kimi (月之暗面)</option>
               <option value="zhipu">Zhipu AI (智谱清言)</option>
-              <option value="qwen">Qwen (通义千问)</option>
-              <option value="custom">自定义 / OpenAI Compatible</option>
+              <option value="openai">OpenAI</option>
             </select>
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-500 mb-1">API Base URL</label>
-            <input v-model="formData.url" type="text" placeholder="https://api.example.com/v1"
-              class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 font-mono text-xs" />
-          </div>
-          <div>
             <label class="block text-xs font-semibold text-slate-500 mb-1">API Key</label>
-            <input v-model="formData.key" type="password" placeholder="sk-..."
+            <input v-model="formData.key" type="password" placeholder="sk-...（可用逗号或换行粘贴多条）"
               class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 font-mono" />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-500 mb-1">模型代号 (Model ID)</label>
-            <div class="relative">
-              <input v-model="formData.model" type="text" list="modelOptions" placeholder="选择或手动输入模型ID"
-                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 font-mono" />
-              <datalist id="modelOptions">
-                <option v-for="model in modelPresets[formData.providerKey] || []" :key="model" :value="model" />
-              </datalist>
-            </div>
           </div>
         </div>
         <div class="px-6 py-4 bg-slate-50 flex justify-end gap-2 border-t border-slate-100">
@@ -235,10 +291,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import {
-  Server, PlusCircle, Plus, Edit2, Trash2, Settings2, X, Save, Globe, Flame, Check
+  Server, PlusCircle, Plus, Edit2, Trash2, Settings2, X, Save, Globe, Flame, Check, Image
 } from 'lucide-vue-next'
 import { useConfigStore } from '../stores/config'
 import { useAnalysisStore } from '../stores/analysis'
+import { api } from '../api'
 
 const emit = defineEmits(['api-updated'])
 
@@ -278,30 +335,8 @@ const savePlatformSelection = () => {
 const formData = ref({
   providerKey: 'deepseek',
   provider: 'Deepseek',
-  url: '',
   key: '',
-  model: ''
 })
-
-const apiProviders = {
-  deepseek: 'https://api.deepseek.com',
-  gemini: 'https://generativelanguage.googleapis.com/v1beta/models',
-  doubao: 'https://ark.cn-beijing.volces.com/api/v3',
-  kimi: 'https://api.moonshot.cn/v1',
-  zhipu: 'https://open.bigmodel.cn/api/paas/v4',
-  qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  custom: ''
-}
-
-const modelPresets = {
-  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
-  gemini: ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-3-pro-preview', 'gemini-3-flash-preview'],
-  doubao: ['doubao-pro-32k', 'doubao-lite-4k'],
-  kimi: ['moonshot-v1-8k', 'moonshot-v1-32k'],
-  zhipu: ['glm-4', 'glm-4-air', 'glm-4-flash'],
-  qwen: ['qwen-turbo', 'qwen-plus'],
-  custom: []
-}
 
 const providerNames = {
   deepseek: 'Deepseek',
@@ -309,17 +344,15 @@ const providerNames = {
   doubao: 'Doubao',
   kimi: 'Kimi',
   zhipu: 'Zhipu AI',
-  qwen: 'Qwen',
-  custom: 'Custom'
+  openai: 'OpenAI'
 }
 
 const loadApiSettings = () => {
   userApis.value = configStore.getUserApis
 }
 
-const updateBaseUrl = () => {
-  formData.value.url = apiProviders[formData.value.providerKey] || ''
-  formData.value.provider = providerNames[formData.value.providerKey] || 'Custom'
+const updateProviderMeta = () => {
+  formData.value.provider = providerNames[formData.value.providerKey] || 'Deepseek'
 }
 
 const openEditModal = (id = null) => {
@@ -327,25 +360,21 @@ const openEditModal = (id = null) => {
   if (id) {
     const api = userApis.value.find(a => a.id === id)
     if (api) {
+      const allowed = Object.keys(providerNames)
       formData.value = {
-        providerKey: api.providerKey || 'custom',
-        provider: api.provider,
-        url: api.url,
+        providerKey: allowed.includes(api.providerKey) ? api.providerKey : 'deepseek',
+        provider: api.provider || providerNames[api.providerKey] || 'Deepseek',
         key: api.key,
-        model: api.model
       }
-      updateBaseUrl()
-      formData.value.model = api.model
+      updateProviderMeta()
     }
   } else {
     formData.value = {
       providerKey: 'deepseek',
       provider: 'Deepseek',
-      url: '',
       key: '',
-      model: ''
     }
-    updateBaseUrl()
+    updateProviderMeta()
   }
   showModal.value = true
 }
@@ -356,7 +385,7 @@ const closeEditModal = () => {
 }
 
 const saveApi = () => {
-  if (!formData.value.url || !formData.value.key) {
+  if (!formData.value.key) {
     alert('请填写完整信息')
     return
   }
@@ -364,9 +393,7 @@ const saveApi = () => {
   const apiData = {
     provider: formData.value.provider,
     providerKey: formData.value.providerKey,
-    url: formData.value.url,
     key: formData.value.key,
-    model: formData.value.model || 'default',
     active: true
   }
 
@@ -380,6 +407,7 @@ const saveApi = () => {
   }
 
   configStore.saveUserApis(userApis.value)
+  syncUserApisToBackend()
   closeEditModal()
   emit('api-updated')
 }
@@ -388,7 +416,16 @@ const removeApi = (id) => {
   if (!confirm('确定删除?')) return
   userApis.value = userApis.value.filter(a => a.id !== id)
   configStore.saveUserApis(userApis.value)
+  syncUserApisToBackend()
   emit('api-updated')
+}
+
+const syncUserApisToBackend = async () => {
+  try {
+    await api.updateUserSettings({ llm_apis: userApis.value })
+  } catch (e) {
+    console.warn('[Settings] 同步 LLM API 到后端失败:', e?.message || e)
+  }
 }
 
 // 热榜配置
@@ -415,8 +452,7 @@ const hotPlatforms = [
 
 const loadHotNewsConfig = async () => {
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/config')
-    const data = await response.json()
+    const data = await api.getConfig()
     if (data.hot_news_config) {
       hotNewsConfig.value = { ...hotNewsConfig.value, ...data.hot_news_config }
     }
@@ -438,17 +474,7 @@ const toggleHotPlatform = (platformId, isChecked) => {
 
 const saveHotNewsConfig = async () => {
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/config', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        hot_news_config: hotNewsConfig.value
-      })
-    })
-
-    if (response.ok) {
+    await api.updateConfig({ hot_news_config: hotNewsConfig.value })
       hotNewsConfigSaved.value = true
       console.log('[Settings] 热榜配置已保存:', hotNewsConfig.value)
 
@@ -456,17 +482,102 @@ const saveHotNewsConfig = async () => {
       setTimeout(() => {
         hotNewsConfigSaved.value = false
       }, 3000)
-    } else {
-      alert('保存配置失败: ' + response.statusText)
-    }
   } catch (error) {
     console.error('Failed to save hot news config:', error)
     alert('保存配置出错: ' + error.message)
   }
 }
 
+// 即梦 / 火山引擎文生图配置
+const volcengine = ref({
+  access_key: '',
+  secret_key: '',
+})
+
+const volcengineSaved = ref(false)
+const agentOverridesSaved = ref(false)
+
+// Agent 绑定（前端只负责选择厂商，后端决定模型/URL/路由策略）
+const agentList = [
+  { key: 'reporter', name: 'Reporter', desc: '事实提炼/信息汇总' },
+  { key: 'analyst', name: 'Analyst', desc: '舆论分析/洞察生成' },
+  { key: 'debater', name: 'Debater', desc: '反驳/辩论视角' },
+  { key: 'writer', name: 'Writer', desc: '文案生成/润色' },
+  { key: 'hotnews_interpretation_agent', name: 'HotNews Interpreter', desc: '热榜单条“演化解读”' },
+  { key: 'translator', name: 'Translator', desc: '中->英 搜索关键词' },
+]
+
+const agentOverrides = ref({})
+
+const providerOptions = computed(() => {
+  const allowed = Object.keys(providerNames)
+  const uniq = new Map()
+  for (const it of (userApis.value || [])) {
+    const key = (it?.providerKey || '').trim()
+    if (!key || !allowed.includes(key)) continue
+    if (!uniq.has(key)) uniq.set(key, providerNames[key] || key)
+  }
+  return Array.from(uniq.entries()).map(([key, name]) => ({ key, name }))
+})
+
+const saveAgentOverrides = async () => {
+  try {
+    const payload = {}
+    for (const a of agentList) {
+      const v = (agentOverrides.value?.[a.key] || '').trim()
+      if (v) payload[a.key] = v
+    }
+    await api.updateUserSettings({ agent_llm_overrides: payload })
+    agentOverridesSaved.value = true
+    setTimeout(() => {
+      agentOverridesSaved.value = false
+    }, 3000)
+  } catch (e) {
+    console.error('[Settings] 保存 Agent 绑定失败:', e)
+    alert('保存 Agent 绑定失败: ' + (e?.message || e))
+  }
+}
+
+const loadUserSettings = async () => {
+  try {
+    const data = await api.getUserSettings()
+    // LLM apis
+    if (Array.isArray(data.llm_apis) && data.llm_apis.length > 0) {
+      userApis.value = data.llm_apis
+      configStore.saveUserApis(userApis.value)
+    } else if (Array.isArray(userApis.value) && userApis.value.length > 0) {
+      // 后端还没保存过，但本地已有配置：自动补写一次，确保后端能拿到 key
+      await api.updateUserSettings({ llm_apis: userApis.value })
+    }
+    // volcengine
+    if (data.volcengine) {
+      volcengine.value = { ...volcengine.value, ...data.volcengine }
+    }
+    // agent overrides
+    if (data.agent_llm_overrides && typeof data.agent_llm_overrides === 'object') {
+      agentOverrides.value = { ...data.agent_llm_overrides }
+    }
+  } catch (e) {
+    console.warn('[Settings] 加载后端 user-settings 失败，将使用本地设置:', e?.message || e)
+  }
+}
+
+const saveVolcengineConfig = async () => {
+  try {
+    await api.updateUserSettings({ volcengine: volcengine.value })
+    volcengineSaved.value = true
+    setTimeout(() => {
+      volcengineSaved.value = false
+    }, 3000)
+  } catch (e) {
+    console.error('[Settings] 保存即梦配置失败:', e)
+    alert('保存即梦配置失败: ' + (e?.message || e))
+  }
+}
+
 onMounted(() => {
   loadApiSettings()
+  loadUserSettings()
   loadPlatformSelection()
   loadHotNewsConfig()
 })

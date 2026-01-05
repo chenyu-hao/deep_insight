@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from pydantic.config import ConfigDict
 from typing import List, Optional, Dict, Any
 
 class NewsRequest(BaseModel):
@@ -96,6 +97,40 @@ class ConfigUpdateRequest(BaseModel):
     crawler_limits: Optional[Dict[str, CrawlerLimit]] = None
     default_platforms: Optional[List[str]] = None
     hot_news_config: Optional[HotNewsConfig] = None
+
+
+# --- 前端可写入的用户设置（落盘到 cache/，不影响 .env） ---
+class UserLLMApi(BaseModel):
+    """
+    Frontend-provided LLM API config.
+    Note: backend currently uses it mainly to merge/override provider keys.
+    """
+    id: Optional[int] = None
+    provider: str
+    providerKey: str
+    url: Optional[str] = None
+    key: str
+    model: Optional[str] = None
+    active: Optional[bool] = True
+
+
+class VolcengineConfig(BaseModel):
+    """Volcengine Visual / 即梦（文生图）配置"""
+    model_config = ConfigDict(extra="ignore")
+    access_key: Optional[str] = None
+    secret_key: Optional[str] = None
+
+
+class UserSettingsResponse(BaseModel):
+    llm_apis: List[UserLLMApi] = []
+    volcengine: Optional[VolcengineConfig] = None
+    agent_llm_overrides: Dict[str, str] = {}
+
+
+class UserSettingsUpdateRequest(BaseModel):
+    llm_apis: Optional[List[UserLLMApi]] = None
+    volcengine: Optional[VolcengineConfig] = None
+    agent_llm_overrides: Optional[Dict[str, str]] = None
 
 # --- 输出文件相关 Schema ---
 class OutputFileInfo(BaseModel):

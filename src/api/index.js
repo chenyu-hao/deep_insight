@@ -136,6 +136,24 @@ export const api = {
     },
 
     /**
+     * 获取用户设置（LLM keys / 即梦配置）
+     */
+    async getUserSettings() {
+        return request("/user-settings");
+    },
+
+    /**
+     * 更新用户设置（部分更新）
+     * @param {Object} payload - { llm_apis?, volcengine? }
+     */
+    async updateUserSettings(payload) {
+        return request("/user-settings", {
+            method: "PUT",
+            body: JSON.stringify(payload),
+        });
+    },
+
+    /**
      * 获取历史输出文件列表
      * @param {number} limit - 数量限制
      * @param {number} offset - 偏移量

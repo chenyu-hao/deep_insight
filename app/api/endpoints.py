@@ -12,6 +12,8 @@ from app.schemas import (
     HotNewsCollectRequest,
     HotNewsInterpretRequest,
     HotNewsInterpretResponse,
+    UserSettingsResponse,
+    UserSettingsUpdateRequest,
 )
 from app.services.workflow import app_graph
 from app.services.workflow_status import workflow_status
@@ -24,6 +26,7 @@ from app.services.hotnews_signals import apply_history_signals, make_history_sna
 from app.services.hotnews_history import HotNewsHistoryConfig, HotNewsHistoryStore
 from app.services.hotnews_interpreter import interpret_hot_topic
 from app.config import settings
+from app.services.user_settings import load_user_settings, update_user_settings
 from pathlib import Path
 from datetime import datetime
 import asyncio
@@ -354,6 +357,33 @@ async def update_config(request: ConfigUpdateRequest):
         "message": f"配置已更新: {', '.join(updated_fields)}",
         "updated_fields": updated_fields
     }
+
+
+@router.get("/user-settings", response_model=UserSettingsResponse)
+async def get_user_settings():
+    """获取前端可写入的用户设置（存储在 cache/user_settings.json）"""
+    data = load_user_settings()
+    # Normalize shape for response model
+    return UserSettingsResponse(
+        llm_apis=data.get("llm_apis") or [],
+        volcengine=data.get("volcengine"),
+        agent_llm_overrides=data.get("agent_llm_overrides") or {},
+    )
+
+
+@router.put("/user-settings", response_model=UserSettingsResponse)
+async def put_user_settings(request: UserSettingsUpdateRequest):
+    """更新前端可写入的用户设置（部分更新）"""
+    merged = update_user_settings(
+        llm_apis=[x.model_dump() for x in request.llm_apis] if request.llm_apis is not None else None,
+        volcengine=request.volcengine.model_dump() if request.volcengine is not None else None,
+        agent_llm_overrides=request.agent_llm_overrides if request.agent_llm_overrides is not None else None,
+    )
+    return UserSettingsResponse(
+        llm_apis=merged.get("llm_apis") or [],
+        volcengine=merged.get("volcengine"),
+        agent_llm_overrides=merged.get("agent_llm_overrides") or {},
+    )
 
 
 @router.get("/outputs", response_model=OutputFileListResponse)

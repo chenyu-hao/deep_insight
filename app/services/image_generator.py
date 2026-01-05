@@ -3,10 +3,16 @@ import time
 import asyncio
 import re
 from typing import List, Optional, Dict, Any
-from volcengine.visual.VisualService import VisualService
 from app.config import settings
 from app.llm import get_agent_llm
+from app.services.user_settings import get_effective_volcengine_credentials
 from langchain_core.messages import SystemMessage, HumanMessage
+
+try:
+    # Optional dependency (may not exist in some dev envs)
+    from volcengine.visual.VisualService import VisualService  # type: ignore
+except Exception:  # pragma: no cover
+    VisualService = None  # type: ignore
 
 IMAGE_PROMPT_GENERATOR_PROMPT = """
 你是一个专业的AI绘画提示词专家，擅长为文生图模型编写高质量的提示词。
@@ -42,11 +48,39 @@ DEFAULT_STYLE = "小红书"
 
 class ImageGeneratorService:
     def __init__(self):
+        if VisualService is None:
+            self.visual_service = None
+            return
         self.visual_service = VisualService()
-        if settings.VOLC_ACCESS_KEY and settings.VOLC_SECRET_KEY:
-            self.visual_service.set_ak(settings.VOLC_ACCESS_KEY)
-            self.visual_service.set_sk(settings.VOLC_SECRET_KEY)
-            self.visual_service.set_host("visual.volcengineapi.com")
+        # Host is stable; credentials may be provided via .env or frontend settings.
+        self.visual_service.set_host("visual.volcengineapi.com")
+
+    def _effective_cfg(self) -> Dict[str, Any]:
+        """Combine defaults (backend-defined) + env/user credentials."""
+        creds = get_effective_volcengine_credentials(
+            env_access_key=settings.VOLC_ACCESS_KEY,
+            env_secret_key=settings.VOLC_SECRET_KEY,
+        )
+        return {
+            "access_key": creds.get("access_key", ""),
+            "secret_key": creds.get("secret_key", ""),
+            # Other generation parameters are intentionally backend-owned.
+            "req_key": DEFAULT_REQ_KEY,
+            "style": DEFAULT_STYLE,
+            "width": DEFAULT_WIDTH,
+            "height": DEFAULT_HEIGHT,
+            "steps": DEFAULT_STEPS,
+            "scale": DEFAULT_SCALE,
+        }
+
+    def _ensure_credentials(self) -> Dict[str, Any]:
+        cfg = self._effective_cfg()
+        if self.visual_service is None:
+            return cfg
+        if cfg.get("access_key") and cfg.get("secret_key"):
+            self.visual_service.set_ak(cfg["access_key"])
+            self.visual_service.set_sk(cfg["secret_key"])
+        return cfg
         
     def _parse_prompts(self, raw: str) -> List[str]:
         raw = (raw or "").strip()
@@ -97,14 +131,18 @@ class ImageGeneratorService:
 
     async def submit_task(self, prompt: str) -> Optional[str]:
         """Submit a text-to-image task to Volcengine."""
+        if self.visual_service is None:
+            print("[IMAGE] volcengine sdk not installed; image generation disabled.")
+            return None
+        cfg = self._ensure_credentials()
         params = {
-            "req_key": DEFAULT_REQ_KEY,
+            "req_key": cfg["req_key"],
             "prompt": prompt,
-            "scale": DEFAULT_SCALE,
-            "width": DEFAULT_WIDTH,
-            "height": DEFAULT_HEIGHT,
-            "style": DEFAULT_STYLE,
-            "steps": DEFAULT_STEPS,
+            "scale": cfg["scale"],
+            "width": cfg["width"],
+            "height": cfg["height"],
+            "style": cfg["style"],
+            "steps": cfg["steps"],
             "seed": -1,
         }
         
@@ -127,8 +165,11 @@ class ImageGeneratorService:
 
     async def get_result(self, task_id: str) -> List[str]:
         """Poll for the result of a task."""
+        if self.visual_service is None:
+            return []
+        cfg = self._ensure_credentials()
         params = {
-            "req_key": DEFAULT_REQ_KEY,
+            "req_key": cfg["req_key"],
             "task_id": task_id,
             "req_json": json.dumps({"return_url": True})
         }
@@ -181,8 +222,12 @@ class ImageGeneratorService:
 
     async def generate_images(self, content: str) -> List[str]:
         """Full workflow: generate N prompts -> submit N tasks -> aggregate results."""
-        if not settings.VOLC_ACCESS_KEY or not settings.VOLC_SECRET_KEY:
-            print("[IMAGE] Volcengine keys not configured.")
+        if self.visual_service is None:
+            print("[IMAGE] volcengine sdk not installed; skip image generation.")
+            return []
+        cfg = self._effective_cfg()
+        if not cfg.get("access_key") or not cfg.get("secret_key"):
+            print("[IMAGE] Volcengine keys not configured (env or user-settings).")
             return []
             
         print(f"[IMAGE] Generating prompts (3-{MAX_IMAGES})...")

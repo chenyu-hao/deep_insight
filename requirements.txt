@@ -9,3 +9,4 @@ python-dotenv
 httpx
 apscheduler
 loguru
+volcengine-python-sdk
