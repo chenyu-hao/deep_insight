@@ -70,7 +70,7 @@ pip install -r requirements.txt
    pip install -r requirements.txt
    ```
 
-# 配置环境变量
+# 配置环境变量(可选)
 cp .env.example .env
 # 编辑 .env 文件，填入你的 API Keys
 

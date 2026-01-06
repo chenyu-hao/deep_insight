@@ -322,6 +322,10 @@ class MediaCrawlerService:
                         platform_names = {"wb": "微博", "xhs": "小红书", "tieba": "贴吧", "dy": "抖音", "ks": "快手", "zhihu": "知乎"}
                         platform_cn = platform_names.get(normalized_platform, normalized_platform)
                         print(f"[信息] {platform_cn}登录可能已超时。请尝试使用cookie登录方式。")
+                except SystemExit as e:
+                    # MediaCrawler's weibo login code may call sys.exit() on login failure.
+                    # If not handled, it will terminate the whole uvicorn process.
+                    print(f"[警告] 平台 {platform} 登录流程触发 SystemExit（通常是未找到二维码/登录失败），将跳过该平台继续流程: {e}")
                 except Exception as e:
                     print(f"[警告] 平台 {platform} 爬取出错: {e}")
                     import traceback
@@ -350,6 +354,10 @@ class MediaCrawlerService:
             
             return standardized
             
+        except SystemExit as e:
+            # Prevent sys.exit() from killing the server; treat as platform failure.
+            print(f"[错误] 爬取平台 {platform} 触发 SystemExit（登录失败/二维码未出现等），已跳过该平台: {e}")
+            return []
         except Exception as e:
             error_msg = str(e).encode('ascii', 'ignore').decode('ascii')  # Remove non-ASCII chars for Windows
             print(f"[错误] 爬取平台 {platform} 时出错: {error_msg}")
