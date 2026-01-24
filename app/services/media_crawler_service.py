@@ -76,64 +76,79 @@ class MediaCrawlerService:
             mc_config.CRAWLER_TYPE = "search"
             # For platforms that require login, use non-headless mode
             # All major platforms need visible browser for login (wb, bili, xhs, tieba, dy, ks, zhihu)
-            if normalized_platform in ["wb", "bili", "xhs", "tieba", "dy", "ks", "zhihu"]:
-                mc_config.HEADLESS = False  # Need visible browser for login
-                mc_config.CDP_HEADLESS = False
-                # Disable CDP mode for login-required platforms to ensure visible browser
-                # CDP mode has issues with headless=False parameter passing
-                mc_config.ENABLE_CDP_MODE = False
-                print(f"[配置] 平台 {normalized_platform} 需要登录，使用标准浏览器模式（非CDP），HEADLESS=False")
-            else:
-                mc_config.HEADLESS = True  # Other platforms can use headless
-                mc_config.CDP_HEADLESS = True
-                mc_config.ENABLE_CDP_MODE = True  # Use CDP mode for better stability
-            mc_config.SAVE_DATA_OPTION = "json"  # We'll intercept store calls
-            # Enable login state saving to browser_data directory
-            mc_config.SAVE_LOGIN_STATE = True  # Save login state to avoid repeated QR code scanning
-            # Set login type - use cookie if available, otherwise qrcode
-            # First try to load saved cookie from cookie manager
+            # Check if we have saved cookies first
             saved_cookie = cookie_manager.get_cookie(normalized_platform)
-            if saved_cookie:
-                mc_config.COOKIES = saved_cookie
-                print(f"[信息] 已加载 {normalized_platform} 的保存的 Cookie，将使用 Cookie 登录")
+            has_cookie_str = bool(saved_cookie and saved_cookie.strip())
+
+            # Check for browser data directory (User Data Dir)
+            # Path: project_root/browser_data/{platform}_user_data_dir
+            browser_data_dir = "browser_data"
             
-            # For Bilibili and Weibo, prefer cookie login to avoid manual QR code scanning
-            if normalized_platform == "bili":
-                # Try cookie login first if cookies are available
-                if mc_config.COOKIES and mc_config.COOKIES.strip():
-                    mc_config.LOGIN_TYPE = "cookie"  # Use saved cookies
-                    print(f"[信息] B站将使用 Cookie 登录（无需扫码）")
-                else:
-                    # No cookie available, will need QR code login
-                    # But we'll set a shorter timeout for login
-                    mc_config.LOGIN_TYPE = "qrcode"  # Will show QR code for manual login
-                    print(f"[信息] B站需要登录。浏览器将打开以扫描二维码登录。")
-                    print(f"[信息] 请在2分钟内扫描二维码，登录成功后 Cookie 将自动保存。")
-            elif normalized_platform == "wb":
-                # Weibo also supports cookie login
-                if mc_config.COOKIES and mc_config.COOKIES.strip():
-                    mc_config.LOGIN_TYPE = "cookie"  # Use saved cookies
-                    print(f"[信息] 微博将使用 Cookie 登录（无需扫码）")
-                else:
-                    # No cookie available, will need QR code login
-                    mc_config.LOGIN_TYPE = "qrcode"  # Will show QR code for manual login
-                    print(f"[信息] 微博需要登录。浏览器将打开以扫描二维码登录。")
-                    print(f"[信息] 请在2分钟内扫描二维码，登录成功后 Cookie 将自动保存。")
-            elif normalized_platform in ["xhs", "tieba", "dy", "ks", "zhihu"]:
-                # Other platforms also need login
-                if mc_config.COOKIES and mc_config.COOKIES.strip():
-                    mc_config.LOGIN_TYPE = "cookie"
-                    platform_names = {"xhs": "小红书", "tieba": "贴吧", "dy": "抖音", "ks": "快手", "zhihu": "知乎"}
+            # Check for specific profile types
+            standard_user_data_dir = os.path.join(browser_data_dir, f"{normalized_platform}_user_data_dir")
+            cdp_user_data_dir = os.path.join(browser_data_dir, f"cdp_{normalized_platform}_user_data_dir")
+            
+            has_standard_data = os.path.exists(standard_user_data_dir) and os.path.isdir(standard_user_data_dir)
+            has_cdp_data = os.path.exists(cdp_user_data_dir) and os.path.isdir(cdp_user_data_dir)
+            
+            has_browser_data = has_standard_data or has_cdp_data
+            has_valid_cookie = has_cookie_str or has_browser_data
+
+            print(f"[DEBUG] Platform: {normalized_platform}")
+            print(f"[DEBUG] Saved Cookie Length: {len(saved_cookie) if saved_cookie else 0}")
+            print(f"[DEBUG] Data Exists - Standard: {has_standard_data}, CDP: {has_cdp_data}")
+            print(f"[DEBUG] Has Valid Login State: {has_valid_cookie}")
+
+            # Determine mode based on login requirement and cookie existence
+            # Platforms that require login: wb, bili, xhs, tieba, dy, ks, zhihu
+            login_required_platforms = ["wb", "bili", "xhs", "tieba", "dy", "ks", "zhihu"]
+            
+            if normalized_platform in login_required_platforms:
+                if has_valid_cookie:
+                    # Have cookie OR browser data -> Run Headless (Silent)
+                    mc_config.HEADLESS = True
+                    mc_config.CDP_HEADLESS = True
+                    
+                    # Smart Mode Selection: Use CDP only if we have CDP data or Cookies (defaulting to CDP for fresh cookies)
+                    # If we ONLY have standard data, force standard mode to retain login
+                    if has_cdp_data:
+                        mc_config.ENABLE_CDP_MODE = True
+                        mode_name = "CDP模式"
+                    elif has_standard_data:
+                        mc_config.ENABLE_CDP_MODE = False
+                        mode_name = "普通模式"
+                    else:
+                        # Fallback for Cookie-only case: Prefer CDP for new sessions
+                        mc_config.ENABLE_CDP_MODE = True
+                        mode_name = "CDP模式(基于Cookie)"
+
+                    if has_cookie_str:
+                        mc_config.LOGIN_TYPE = "cookie"
+                        mc_config.COOKIES = saved_cookie
+                        login_method = "Cookie字符串"
+                    else:
+                        mc_config.LOGIN_TYPE = "qrcode"
+                        login_method = "浏览器缓存数据"
+                    
+                    platform_names = {"xhs": "小红书", "tieba": "贴吧", "dy": "抖音", "ks": "快手", "zhihu": "知乎", "bili": "B站", "wb": "微博"}
                     platform_cn = platform_names.get(normalized_platform, normalized_platform)
-                    print(f"[信息] {platform_cn}将使用 Cookie 登录（无需扫码）")
+                    print(f"[配置] {platform_cn} 检测到有效 {login_method}，启用静默爬虫 ({mode_name})")
                 else:
+                    # No cookie -> Show Browser for Login
+                    mc_config.HEADLESS = False
+                    mc_config.CDP_HEADLESS = False
+                    mc_config.ENABLE_CDP_MODE = False # Disable CDP for stable manual login
                     mc_config.LOGIN_TYPE = "qrcode"
-                    platform_names = {"xhs": "小红书", "tieba": "贴吧", "dy": "抖音", "ks": "快手", "zhihu": "知乎"}
+                    
+                    platform_names = {"xhs": "小红书", "tieba": "贴吧", "dy": "抖音", "ks": "快手", "zhihu": "知乎", "bili": "B站", "wb": "微博"}
                     platform_cn = platform_names.get(normalized_platform, normalized_platform)
-                    print(f"[信息] {platform_cn}需要登录。浏览器将打开以扫描二维码登录。")
-                    print(f"[信息] 请在浏览器窗口中扫描二维码，登录成功后 Cookie 将自动保存。")
+                    print(f"[配置] {platform_cn} 未检测到登录状态，将弹出浏览器进行扫码登录 (HEADLESS=False)")
             else:
-                mc_config.LOGIN_TYPE = "qrcode"  # Default to QR code login
+                # Platforms that don't strictly require login
+                mc_config.HEADLESS = True
+                mc_config.CDP_HEADLESS = True
+                mc_config.ENABLE_CDP_MODE = True
+                print(f"[配置] 平台 {normalized_platform} 不需要登录，启用静默模式")
             # Disable media download to speed up crawling
             mc_config.ENABLE_GET_MEIDAS = False
             mc_config.ENABLE_GET_COMMENTS = True  # Keep comments enabled
@@ -305,14 +320,39 @@ class MediaCrawlerService:
                     
                     # After successful start, try to extract and save cookies
                     # This will save cookies for next time, avoiding QR code login
+                    print(f"[DEBUG] 爬取结束，尝试提取 Cookie 以便下次静默登录...")
                     try:
+                        extracted_cookies = None
+                        
+                        # Strategy 1: check browser_context (Playwright)
                         if hasattr(crawler, "browser_context") and crawler.browser_context:
-                            cookies = await crawler.browser_context.cookies()
-                            if cookies:
-                                cookie_manager.save_cookies_from_browser(normalized_platform, cookies)
+                            print(f"[DEBUG] 检测到 browser_context，尝试获取 cookies")
+                            extracted_cookies = await crawler.browser_context.cookies()
+                            
+                        # Strategy 2: check page environment (DrissionPage/Playwright fallback)
+                        elif hasattr(crawler, "page"):
+                            print(f"[DEBUG] 检测到 page 对象，尝试获取 cookies")
+                            if hasattr(crawler.page, "context"):
+                                extracted_cookies = await crawler.page.context.cookies()
+                            elif hasattr(crawler.page, "cookies"):
+                                # DrissionPage often returns cookies as list of dicts or dict
+                                cookies_res = crawler.page.cookies
+                                if callable(cookies_res):
+                                    extracted_cookies = cookies_res(as_dict=False) # Get list of dicts
+                                else:
+                                    extracted_cookies = cookies_res
+
+                        if extracted_cookies:
+                            print(f"[DEBUG] 成功提取到 {len(extracted_cookies)} 个 Cookie，正在保存到 cookies.json...")
+                            cookie_manager.save_cookies_from_browser(normalized_platform, extracted_cookies)
+                        else:
+                            print(f"[DEBUG] 未能提取到 Cookie: crawler 对象中未找到可用 Cookie 数据")
+                            if hasattr(crawler, "__dict__"):
+                                print(f"[DEBUG] Crawler 属性列表: {list(crawler.__dict__.keys())}")
+                                
                     except Exception as e:
                         # Cookie extraction is optional, don't fail if it doesn't work
-                        print(f"[提示] 未能自动保存 Cookie（不影响使用）: {e}")
+                        print(f"[提示] 未能自动保存 Cookie（详细错误）: {e}")
                         
                 except asyncio.TimeoutError:
                     print(f"[警告] 平台 {platform} 爬取超时，已等待 {timeout} 秒")
