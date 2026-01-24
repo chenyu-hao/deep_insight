@@ -250,54 +250,28 @@ DEBATER_PROMPT = """
 """
 
 WRITER_PROMPT = """
-你是一位书写小红书爆款文案的专家，精通小红书爆款文案书写格式和要求，熟悉热点词汇，善于抓住流量密码，十分擅长写作。
+你是小红书内容策划与写作专家。请基于输入信息生成可直接发布的小红书笔记，语言幽默风趣有梗，要求“吸引眼球但客观、简洁但信息密度高”。
 
-你的任务是将最终分析转化为一篇病毒式传播的小红书爆款帖子。
+写作核心策略：
+1. 去列表化：将数据、来源、平台对比等硬核信息，自然融入到事件发展的叙述中，不要使用罗列形式。
+2. 高密度输出：每一句话都要有实质信息，拒绝废话。
+3. 情绪与观点：客观陈述事实后，必须给出犀利的行业或文化分析。
 
-**核心要求**：
-- 使用接地气的写作风格撰写评论文章
-- 禁止使用```首先、其次、然而、总的来说、最后```这些副词
-- 每句话尽量口语化、简短
-- 文章总篇幅控制在200字左右
-# - 大量使用表情符号 🌟✨
-- 关注"真相揭秘"或"幕后"角度
-- 请用**中文**撰写
+具体要求：
+- 标题：12-15字，含emoji，吸引但不夸大。
+- 结构：结论先行 -> 事件+证据+数据（融合写）-> 深度分析 -> 互动。
+- 禁语：禁止使用“首先、其次、最后、综上所述”等连接词。
+- 标签：文末3-6个#标签。
 
-**标题要求（必须严格遵守）**：
-1. **字数限制**：**务必控制在 20 字以内**（包含标点和Emoji），否则无法发布！
-2. 善于使用标题吸引人，制造反差或悬念
-3. 使用爆款关键词（如：真相、内幕、竟然、居然、没想到等）
-4. 了解小红书平台的标题特性（短小精悍、情绪化）
-5. 标题含适当的emoji表情（1-2个即可，不要过多导致超长）
-6. 标题要能抓住眼球，让人忍不住点开
+输出格式（严格遵守）：
+TITLE: [标题]
+CONTENT:
+[1-2句结论开场，直接点破本质]
+[核心段落：3-5句话。将事件经过、关键数据、平台热度对比、来源出处等信息糅合成一段通顺的文字。可适当使用emoji（如⚡/🆚/📉）作为句内视觉分割，但不要换行罗列]
+[1-2句犀利点评/底层逻辑分析]
+[一句互动提问]
 
-**正文要求**：
-1. **写作风格**：接地气、口语化、亲切自然，像和朋友聊天一样
-2. **写作开篇方法**：用疑问句、感叹句或直接切入主题，快速抓住注意力
-3. **文本结构**：分段明确，每段2-3句话，使用emoji表情增强表现力
-4. **互动引导方法**：在文中适当使用"你们觉得呢？"、"有没有同感的？"等互动语句
-5. **小技巧**：使用爆炸词（如：绝了、太绝了、真的、真的假的、天哪等）增强情绪
-6. **SEO关键词**：从生成的内容中抽取3~6个SEO关键词，生成#标签放在文章最后
-7. **禁止使用**：```首先、其次、然而、总的来说、最后```这些副词
-8. **字数控制**：总字数控制在 800 字以内
-
-**输出格式要求（必须严格遵守）**：
-你的输出必须包含以下两个标记，每个标记占一行：
-TITLE: [20字以内的标题]
-CONTENT: [正文内容，分段，口语化，每段含emoji，文末加3-6个#标签]
-
-注意：你的输出应该是最终结果，禁止在输出中包含"标题"、"正文"、"标签"这些词本身。
-
-示例：
-TITLE: 🔥 真相来了！这件事背后竟然...
-CONTENT: 
-姐妹们，今天要聊一个超级重要的话题！💡
-
-最近大家都在讨论XXX，但是真相到底是什么？🤔
-
-让我来给大家扒一扒...真的绝了！✨
-
-#真相 #热点 #深度分析 #内幕 #爆料
+#标签 #标签 #标签
 """
 
 # --- 4. Node Functions ---
@@ -606,11 +580,31 @@ async def writer_node(state: GraphState):
         }
     analysis = state["initial_analysis"]
     topic = state["topic"]
+    news_content = state.get("news_content", "")
+    platform_data = state.get("platform_data", {})
     llm = get_agent_llm("writer")
+
+    # Summarize platform stats
+    platform_stats = []
+    for p, items in platform_data.items():
+        if items:
+            platform_stats.append(f"{p}: {len(items)}条")
+    platform_stats_str = ", ".join(platform_stats) if platform_stats else "无具体数据"
+    
+    # Evidence uses the analyzed facts
+    evidence = news_content
+    
+    input_text = (
+        f"输入：\n"
+        f"- 热点话题：{topic}\n"
+        f"- 关键信息/证据：{evidence}\n"
+        f"- 平台分布/热度对比：{platform_stats_str}\n"
+        f"- 时间范围：{datetime.now().strftime('%Y-%m-%d')}\n"
+    )
     
     messages = [
         SystemMessage(content=_with_safety_instruction(WRITER_PROMPT)),
-        HumanMessage(content=_redact_political(f"请将此分析转化为小红书帖子：\n{analysis}")),
+        HumanMessage(content=_redact_political(input_text)),
     ]
     response = await llm.ainvoke(messages)
     content = _redact_political(extract_text_content(response.content))
