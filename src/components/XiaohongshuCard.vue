@@ -148,23 +148,26 @@ const generateImage = async () => {
     const emojiPos = props.emojiPos
     let emojiX, emojiY
     
+    const emojiSize = 250 
+    const halfEmojiSize = emojiSize / 2
+
     switch(emojiPos) {
       case 'top-left':
-        emojiX = emojiMarginX
-        emojiY = emojiMarginY
+        emojiX = emojiMarginX + halfEmojiSize
+        emojiY = emojiMarginY + halfEmojiSize
         break
       case 'top-right':
-        emojiX = WIDTH - emojiMarginX
-        emojiY = emojiMarginY
+        emojiX = WIDTH - emojiMarginX - halfEmojiSize
+        emojiY = emojiMarginY + halfEmojiSize
         break
       case 'bottom-left':
-        emojiX = emojiMarginX
-        emojiY = HEIGHT - emojiMarginY
+        emojiX = emojiMarginX + halfEmojiSize
+        emojiY = HEIGHT - emojiMarginY - halfEmojiSize
         break
       case 'bottom-right':
       default:
-        emojiX = WIDTH - emojiMarginX
-        emojiY = HEIGHT - emojiMarginY
+        emojiX = WIDTH - emojiMarginX - halfEmojiSize
+        emojiY = HEIGHT - emojiMarginY - halfEmojiSize
         break
     }
     
@@ -172,7 +175,7 @@ const generateImage = async () => {
     // Phone view is ~320px wide. 80/320 = 1/4.
     // On 1080px canvas, 1/4 * 1080 = 270px.
     // Let's settle on 220px to 250px.
-    const emojiSize = 250 
+    // const emojiSize = 250 (Moved up for calc) 
     ctx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
@@ -190,7 +193,7 @@ const generateImage = async () => {
     // Horizontal: 12% of Width
     const textMarginX = WIDTH * 0.12
     const textMarginY = HEIGHT * 0.18
-    const maxTitleWidth = WIDTH * 0.75 // 75% width
+    const maxTitleWidth = WIDTH * 0.60 // Adjusted to 60% for tighter wrapping matching preview
     
     const titleText = props.title || '标题生成中...'
     
@@ -283,8 +286,14 @@ const generateImage = async () => {
         startY = textY + (lineHeight * 0.5) // Push down half-line for middle baseline
     }
     
+    // Simulate extra bold using stroke
+    ctx.lineWidth = 3
+    ctx.strokeStyle = colors.textColor
+
     lines.forEach((line, i) => {
-        ctx.fillText(line, textX, startY + (i * lineHeight))
+        const y = startY + (i * lineHeight)
+        ctx.strokeText(line, textX, y)
+        ctx.fillText(line, textX, y)
     })
     
     return canvas.toDataURL('image/png')
