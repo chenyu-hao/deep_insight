@@ -93,7 +93,7 @@
 
     <section class="py-8 px-4 max-w-7xl mx-auto space-y-8">
       <!-- 步骤列表卡片 -->
-      <div v-if="isLoading && workflowStatus.running" class="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+      <div v-show="isLoading && workflowStatus.running" class="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
         <h3 class="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
           <Activity class="w-4 h-4 text-blue-600" /> 工作流进度
         </h3>
@@ -619,7 +619,7 @@ const workflowSteps = [
   { key: 'analyst', name: '舆情分析', description: '深度洞察分析', icon: Brain, progress: 40 },
   { key: 'debater', name: '智能辩论', description: '多角度辩论', icon: MessageSquare, progress: 60 },
   { key: 'writer', name: '文案生成', description: '生成爆款文案', icon: PenLine, progress: 80 },
-  { key: 'image_generator', name: '配图生成', description: 'AI生成组图', icon: Image, progress: 95 }
+  { key: 'image_generator', name: '配图生成', description: 'AI生成组图', icon: ImageIcon, progress: 95 }
 ]
 
 // 获取步骤状态类
