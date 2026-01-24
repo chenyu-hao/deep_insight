@@ -5,10 +5,7 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16 items-center">
           <div class="flex items-center gap-2 cursor-pointer" @click="switchTab('home')">
-            <div
-              class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
-              <Waves class="w-5 h-5" />
-            </div>
+            <img :src="logo" alt="Logo" class="w-16 h-16 object-cover mix-blend-multiply" />
             <span class="text-xl font-bold text-slate-800 tracking-tight">
               观潮 <span class="font-light text-blue-600">GrandChart</span>
             </span>
@@ -76,6 +73,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { Waves, Zap, PieChart, Network, Flag, Settings, Flame } from 'lucide-vue-next'
+import logo from './logo/logo-light.png'
 import HomeView from './views/HomeView.vue'
 import HotView from './views/HotView.vue'
 import DataView from './views/DataView.vue'
