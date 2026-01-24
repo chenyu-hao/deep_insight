@@ -37,3 +37,6 @@ cache/
 
 # Cookies (sensitive data)
 cookies.json
+
+# Build output
+dist/
