@@ -139,9 +139,7 @@ const generateImage = async () => {
     // 2. Emoji
     // Preview: 8% margin. 8% of 1080 = 86.4px. Let's use 8%.
     const marginX = WIDTH * 0.08
-    const marginY = WIDTH * 0.08 // Usually margins are visually consistent, so relative to width is common or height?
-    // In CSS "top: 8%", it's percentage of container height usually.
-    // 8% of 1440 = 115.2px.
+    const marginY = WIDTH * 0.08 
     const emojiMarginY = HEIGHT * 0.08 
     const emojiMarginX = WIDTH * 0.08
     
@@ -171,11 +169,6 @@ const generateImage = async () => {
         break
     }
     
-    // Emoji size: 5rem in preview. 5 * 16 = 80px (on typical root). 
-    // Phone view is ~320px wide. 80/320 = 1/4.
-    // On 1080px canvas, 1/4 * 1080 = 270px.
-    // Let's settle on 220px to 250px.
-    // const emojiSize = 250 (Moved up for calc) 
     ctx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
@@ -188,46 +181,13 @@ const generateImage = async () => {
     ctx.restore()
     
     // 3. Title Text
-    // Margins logic:
-    // Vertical: 18% of Height
-    // Horizontal: 12% of Width
+    // Margins logic: Vertical 18%, Horizontal 12%
     const textMarginX = WIDTH * 0.12
     const textMarginY = HEIGHT * 0.18
-    const maxTitleWidth = WIDTH * 0.60 // Adjusted to 60% for tighter wrapping matching preview
+    const maxTitleWidth = WIDTH * 0.72 
     
     const titleText = props.title || '标题生成中...'
-    
-    // Font Sizing matches 2.5rem ~ 1/8 to 1/7 of container width
     let fontSize = 135 
-    
-    // Wrapping helper
-    const getLines = (ctx, text, maxWidth) => {
-        const chars = text.split('')
-        const lines = []
-        let line = ''
-        for (const char of chars) {
-            const testLine = line + char
-            const metrics = ctx.measureText(testLine)
-            if (metrics.width > maxWidth && line.length > 0) {
-                lines.push(line)
-                line = char
-            } else {
-                line = testLine
-            }
-        }
-        if (line) lines.push(line)
-        return lines
-    }
-    
-    let lines = []
-    // Fallback shrink loop (only if crazy long)
-    for (let i = 0; i < 5; i++) {
-        ctx.font = `900 ${fontSize}px "SF Pro SC", "PingFang SC", "Microsoft YaHei", sans-serif`
-        lines = getLines(ctx, titleText, maxTitleWidth)
-        if (lines.length <= 4) break
-        fontSize -= 10
-        if (fontSize < 80) break
-    }
     
     ctx.fillStyle = colors.textColor
     ctx.shadowColor = 'rgba(0,0,0,0.1)'
@@ -263,35 +223,119 @@ const generateImage = async () => {
     
     ctx.textAlign = textAlign
     ctx.textBaseline = 'middle'
-    const lineHeight = fontSize * 1.25
-    
-    // Positioning logic (calculating start Y based on block height)
-    let startY = textY
-    const totalBlockHeight = lines.length * lineHeight
-    
-    if (emojiPos.includes('top')) {
-        // Text is at Bottom. anchor textY is the "Bottom" line (from CSS: bottom: 18%)
-        // So we draw UPWARDS from textY? or we shift startY up.
-        // Let's say textY is the visual center of the last line? Or bottom of the block?
-        // To be safe: let's assume textY is the bottom edge of the text block area.
-        // Let's shift up by total block height.
-        startY = textY - totalBlockHeight + (lineHeight * 0.5) // basic adjustment
-        // Actually, canvas textBaseline middle means Y is center of char.
-        // If textY is "bottom margin", it's the baseline of the last line roughly.
-        startY = textY - ((lines.length - 1) * lineHeight)
-    } else {
-        // Text is at Top. textY is "Top" margin (top: 18%).
-        // This is the top of the block.
-        // We draw downwards.
-        startY = textY + (lineHeight * 0.5) // Push down half-line for middle baseline
-    }
-    
-    // Simulate extra bold using stroke
     ctx.lineWidth = 3
     ctx.strokeStyle = colors.textColor
+    
+    // --- Exclusion Zone Algorithm ---
+    const padding = 20
+    const emojiBox = {
+        left: emojiX - halfEmojiSize - padding,
+        right: emojiX + halfEmojiSize + padding,
+        top: emojiY - halfEmojiSize - padding,
+        bottom: emojiY + halfEmojiSize + padding
+    }
 
-    lines.forEach((line, i) => {
-        const y = startY + (i * lineHeight)
+    const getLayoutForLine = (lineY, lineHeight) => {
+        const lineTop = lineY - lineHeight / 2
+        const lineBottom = lineY + lineHeight / 2
+        
+        if (lineBottom < emojiBox.top || lineTop > emojiBox.bottom) {
+            return { width: maxTitleWidth }
+        }
+        
+        // Horizontal Collision
+        let availableWidth = maxTitleWidth
+        
+        if (textAlign === 'left') {
+            // Text Left-Aligned. Check if Emoji is on right blocking us.
+            if (emojiBox.left > textX) {
+                 availableWidth = Math.min(maxTitleWidth, emojiBox.left - textX)
+            }
+        } else {
+            // Text Right-Aligned. Check if Emoji is on left blocking us.
+            if (emojiBox.right < textX) {
+                availableWidth = Math.min(maxTitleWidth, textX - emojiBox.right)
+            }
+        }
+        
+        // Ensure non-negative width
+        return { width: Math.max(50, availableWidth) }
+    }
+
+    const computeLinesWithExclusion = (ctx, text, startY, lineHeight) => {
+        const chars = text.split('')
+        const lines = []
+        let currentLine = ''
+        // We simulate layout line by line.
+        // We need to track currentY.
+        let currentY = startY
+        
+        // Since we don't know the exact number of lines yet when Bottom Anchor,
+        // startY might be wrong. This function assumes startY is the TOP of the first line.
+        
+        // Initial layout check for first line
+        let layout = getLayoutForLine(currentY, lineHeight)
+        let currentMaxWidth = layout.width
+
+        for (const char of chars) {
+            const testLine = currentLine + char
+            const metrics = ctx.measureText(testLine)
+            
+            if (metrics.width > currentMaxWidth && currentLine.length > 0) {
+                lines.push(currentLine)
+                currentLine = char
+                // Move to next line
+                currentY += lineHeight
+                // Re-calculate layout for new line
+                layout = getLayoutForLine(currentY, lineHeight)
+                currentMaxWidth = layout.width
+            } else {
+                currentLine = testLine
+            }
+        }
+        if (currentLine) lines.push(currentLine)
+        return lines
+    }
+    // Iterative Solver
+    let finalLines = []
+    let finalStartY = 0
+    const isBottomAnchored = emojiPos.includes('top')
+    
+    // Fallback font shrink loop
+    for (let f = 0; f < 3; f++) {
+        ctx.font = `900 ${fontSize}px "SF Pro SC", "PingFang SC", sans-serif`
+        const lineHeight = fontSize * 1.25
+        
+        // Stable layout pass
+        for (let pass = 0; pass < 3; pass++) {
+            let candidateStartY
+            if (isBottomAnchored) {
+                 // Text is at bottom. Canvas `textY` is the baseline/center of the LAST line.
+                 // Deduce Top from it.
+                 const numLines = (finalLines && finalLines.length) ? finalLines.length : 3 
+                 candidateStartY = textY - ((numLines - 1) * lineHeight)
+            } else {
+                 // Text is at Top. `textY` is the center/baseline of FIRST line.
+                 candidateStartY = textY + (lineHeight * 0.5)
+            }
+            
+            const lines = computeLinesWithExclusion(ctx, titleText, candidateStartY, lineHeight)
+            
+            finalLines = lines
+            finalStartY = candidateStartY
+            
+            // If stable, break inner pass
+            if (pass > 0 && lines.length === finalLines.length) break
+        }
+        
+        if (finalLines.length <= 4) break
+        fontSize -= 15
+    }
+
+    // Final Draw
+    const finalLineHeight = fontSize * 1.25
+    finalLines.forEach((line, i) => {
+        const y = finalStartY + (i * finalLineHeight)
         ctx.strokeText(line, textX, y)
         ctx.fillText(line, textX, y)
     })
