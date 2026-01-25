@@ -48,17 +48,36 @@ def get_volcengine_settings() -> Dict[str, Any]:
     return volc if isinstance(volc, dict) else {}
 
 
-def get_agent_llm_overrides() -> Dict[str, str]:
+def get_agent_llm_overrides() -> Dict[str, Dict[str, Any]]:
+    """
+    Get agent LLM overrides in new format: {agent_name: {provider, model, apiId}}
+    Also handles backward compatibility with old format (agent_name: provider_string)
+    """
     data = load_user_settings()
     overrides = data.get("agent_llm_overrides")
     if not isinstance(overrides, dict):
         return {}
-    out: Dict[str, str] = {}
+    
+    out: Dict[str, Dict[str, Any]] = {}
     for k, v in overrides.items():
         kk = str(k).strip()
-        vv = str(v).strip()
-        if kk and vv:
-            out[kk] = vv
+        if not kk:
+            continue
+            
+        # Handle both old format (string) and new format (dict)
+        if isinstance(v, str):
+            # Old format: just provider key
+            vv = v.strip()
+            if vv:
+                out[kk] = {"provider": vv, "model": "", "apiId": None}
+        elif isinstance(v, dict):
+            # New format: {provider, model, apiId}
+            provider = (v.get("provider") or "").strip()
+            model = (v.get("model") or "").strip()
+            apiId = v.get("apiId")
+            if provider:
+                out[kk] = {"provider": provider, "model": model, "apiId": apiId}
+    
     return out
 
 
@@ -134,4 +153,44 @@ def get_effective_volcengine_credentials(
     ak = (volc.get("access_key") or volc.get("ak") or "").strip() or (env_access_key or "").strip()
     sk = (volc.get("secret_key") or volc.get("sk") or "").strip() or (env_secret_key or "").strip()
     return {"access_key": ak, "secret_key": sk}
+
+
+def get_agent_api_config(agent_name: str) -> Optional[Dict[str, Any]]:
+    """
+    Get the specific API configuration for an agent based on agent_llm_overrides.
+    Returns: {provider, model, key} or None if no override configured.
+    """
+    overrides = get_agent_llm_overrides()
+    override = overrides.get(agent_name)
+    if not override:
+        return None
+    
+    provider = override.get("provider")
+    model = override.get("model", "")
+    
+    if not provider:
+        return None
+    
+    # Find the matching API configuration from llm_apis
+    apis = get_user_llm_apis()
+    for api in apis:
+        api_provider = (api.get("providerKey") or api.get("provider_key") or "").strip().lower()
+        api_model = (api.get("model") or "").strip()
+        
+        # Match by provider and model
+        if api_provider == provider.lower():
+            # If model is specified in override, must match
+            if model and api_model != model:
+                continue
+            # If no model specified in override, use first matching provider
+            
+            key = (api.get("key") or "").strip()
+            if key:
+                return {
+                    "provider": provider,
+                    "model": api_model or model,
+                    "key": key
+                }
+    
+    return None
 

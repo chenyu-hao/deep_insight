@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from pydantic.config import ConfigDict
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 
 class NewsRequest(BaseModel):
     urls: List[str] = []
@@ -124,13 +124,13 @@ class VolcengineConfig(BaseModel):
 class UserSettingsResponse(BaseModel):
     llm_apis: List[UserLLMApi] = []
     volcengine: Optional[VolcengineConfig] = None
-    agent_llm_overrides: Dict[str, str] = {}
+    agent_llm_overrides: Dict[str, Union[str, Dict[str, Any]]] = {}
 
 
 class UserSettingsUpdateRequest(BaseModel):
     llm_apis: Optional[List[UserLLMApi]] = None
     volcengine: Optional[VolcengineConfig] = None
-    agent_llm_overrides: Optional[Dict[str, str]] = None
+    agent_llm_overrides: Optional[Dict[str, Union[str, Dict[str, Any]]]] = None
 
 # --- 输出文件相关 Schema ---
 class OutputFileInfo(BaseModel):

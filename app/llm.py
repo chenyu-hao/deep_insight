@@ -1,8 +1,8 @@
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from app.config import settings
-from app.services.user_settings import get_effective_llm_keys, get_agent_llm_overrides
-from typing import Dict, List
+from app.services.user_settings import get_effective_llm_keys, get_agent_llm_overrides, get_agent_api_config
+from typing import Dict, List, Optional
 
 class KeyManager:
     def __init__(self, keys, provider_name="Unknown"):
@@ -33,15 +33,19 @@ def _get_manager(provider_key: str, keys: List[str], provider_name: str) -> KeyM
         _key_managers[pk] = existing
     return existing
 
-def get_llm(provider: str, model_name: str):
+def get_llm(provider: str, model_name: str, api_key: Optional[str] = None):
     """
     Factory function to get an LLM instance based on provider and model.
+    If api_key is provided, use it directly; otherwise use key rotation.
     """
     if provider == "google" or provider == "gemini":
-        keys = get_effective_llm_keys(provider_key="gemini", env_keys=settings.GEMINI_API_KEYS)
-        current_key = _get_manager("gemini", keys, "Gemini").get_next_key()
-        
-        print(f"🔑 Using Gemini Key: ...{current_key[-6:]}")
+        if api_key:
+            current_key = api_key
+            print(f"🔑 Using Agent-specific Gemini Key: ...{current_key[-6:]}")
+        else:
+            keys = get_effective_llm_keys(provider_key="gemini", env_keys=settings.GEMINI_API_KEYS)
+            current_key = _get_manager("gemini", keys, "Gemini").get_next_key()
+            print(f"🔑 Using Gemini Key: ...{current_key[-6:]}")
         
         return ChatGoogleGenerativeAI(
             model=model_name,
@@ -51,10 +55,13 @@ def get_llm(provider: str, model_name: str):
         )
         
     elif provider == "moonshot":
-        keys = get_effective_llm_keys(provider_key="kimi", env_keys=settings.MOONSHOT_API_KEYS)
-        # Back-compat: provider in backend is 'moonshot' but frontend uses 'kimi'
-        current_key = _get_manager("moonshot", keys, "Moonshot").get_next_key()
-        print(f"🔑 Using Moonshot Key: ...{current_key[-6:]}")
+        if api_key:
+            current_key = api_key
+            print(f"🔑 Using Agent-specific Moonshot Key: ...{current_key[-6:]}")
+        else:
+            keys = get_effective_llm_keys(provider_key="kimi", env_keys=settings.MOONSHOT_API_KEYS)
+            current_key = _get_manager("moonshot", keys, "Moonshot").get_next_key()
+            print(f"🔑 Using Moonshot Key: ...{current_key[-6:]}")
         return ChatOpenAI(
             model=model_name,
             temperature=0.7,
@@ -63,19 +70,27 @@ def get_llm(provider: str, model_name: str):
         )
 
     elif provider == "openai":
-        # Allow overriding via user settings as well (optional)
-        keys = get_effective_llm_keys(provider_key="openai", env_keys=[settings.OPENAI_API_KEY])
-        api_key = keys[0] if keys else settings.OPENAI_API_KEY
+        if api_key:
+            current_key = api_key
+            print(f"🔑 Using Agent-specific OpenAI Key: ...{current_key[-6:]}")
+        else:
+            keys = get_effective_llm_keys(provider_key="openai", env_keys=[settings.OPENAI_API_KEY])
+            current_key = keys[0] if keys else settings.OPENAI_API_KEY
+            print(f"🔑 Using OpenAI Key: ...{current_key[-6:]}")
         return ChatOpenAI(
             model=model_name,
             temperature=0.7,
-            api_key=api_key
+            api_key=current_key
         )
 
     elif provider == "deepseek":
-        keys = get_effective_llm_keys(provider_key="deepseek", env_keys=settings.DEEPSEEK_API_KEYS)
-        current_key = _get_manager("deepseek", keys, "DeepSeek").get_next_key()
-        print(f"🔑 Using DeepSeek Key: ...{current_key[-6:]}")
+        if api_key:
+            current_key = api_key
+            print(f"🔑 Using Agent-specific DeepSeek Key: ...{current_key[-6:]}")
+        else:
+            keys = get_effective_llm_keys(provider_key="deepseek", env_keys=settings.DEEPSEEK_API_KEYS)
+            current_key = _get_manager("deepseek", keys, "DeepSeek").get_next_key()
+            print(f"🔑 Using DeepSeek Key: ...{current_key[-6:]}")
         return ChatOpenAI(
             model=model_name,
             temperature=0.7,
@@ -84,9 +99,13 @@ def get_llm(provider: str, model_name: str):
         )
 
     elif provider == "doubao":
-        keys = get_effective_llm_keys(provider_key="doubao", env_keys=settings.DOUBAO_API_KEYS)
-        current_key = _get_manager("doubao", keys, "Doubao").get_next_key()
-        print(f"🔑 Using Doubao Key: ...{current_key[-6:]}")
+        if api_key:
+            current_key = api_key
+            print(f"🔑 Using Agent-specific Doubao Key: ...{current_key[-6:]}")
+        else:
+            keys = get_effective_llm_keys(provider_key="doubao", env_keys=settings.DOUBAO_API_KEYS)
+            current_key = _get_manager("doubao", keys, "Doubao").get_next_key()
+            print(f"🔑 Using Doubao Key: ...{current_key[-6:]}")
         return ChatOpenAI(
             model=model_name,
             temperature=0.7,
@@ -95,9 +114,13 @@ def get_llm(provider: str, model_name: str):
         )
 
     elif provider == "zhipu":
-        keys = get_effective_llm_keys(provider_key="zhipu", env_keys=settings.ZHIPU_API_KEYS)
-        current_key = _get_manager("zhipu", keys, "Zhipu").get_next_key()
-        print(f"🔑 Using Zhipu Key: ...{current_key[-6:]}")
+        if api_key:
+            current_key = api_key
+            print(f"🔑 Using Agent-specific Zhipu Key: ...{current_key[-6:]}")
+        else:
+            keys = get_effective_llm_keys(provider_key="zhipu", env_keys=settings.ZHIPU_API_KEYS)
+            current_key = _get_manager("zhipu", keys, "Zhipu").get_next_key()
+            print(f"🔑 Using Zhipu Key: ...{current_key[-6:]}")
         return ChatOpenAI(
             model=model_name,
             temperature=0.7,
@@ -113,19 +136,34 @@ class ResilientChatModel:
     A wrapper around multiple LLM providers that implements fallback logic.
     If one provider fails, it automatically tries the next one in the list.
     """
-    def __init__(self, configs):
+    def __init__(self, configs, agent_name: Optional[str] = None):
         self.configs = configs if isinstance(configs, list) else [configs]
+        self.agent_name = agent_name
 
     async def ainvoke(self, messages, **kwargs):
         """
         Invoke LLM with automatic fallback to alternative providers.
         """
+        # Check if agent has specific API configuration
+        agent_config = None
+        if self.agent_name:
+            agent_config = get_agent_api_config(self.agent_name)
+        
         errors = []
         for idx, config in enumerate(self.configs):
             provider = config["provider"]
             model = config["model"]
+            
+            # Use agent-specific API key if available
+            api_key = None
+            if agent_config and agent_config["provider"].lower() == _PROVIDERKEY_TO_PROVIDER.get(provider.lower(), provider).lower():
+                api_key = agent_config["key"]
+                if agent_config["model"]:
+                    model = agent_config["model"]
+                print(f"🎯 [Agent Override] Using {self.agent_name}'s API: {provider} ({model})")
+            
             try:
-                llm = get_llm(provider, model)
+                llm = get_llm(provider, model, api_key=api_key)
                 if idx == 0:
                     print(f"🎯 [LLM] Using {provider} ({model})")
                 else:
@@ -169,13 +207,41 @@ _PROVIDERKEY_TO_PROVIDER = {
 
 
 def _apply_agent_override(agent_name: str, configs: List[dict]) -> List[dict]:
-    """Reorder agent provider list to prefer user-selected provider (if any)."""
+    """
+    Reorder agent provider list to prefer user-selected provider (if any).
+    New logic: If agent has a specific API config, use that exclusively.
+    """
     if not configs:
         return configs
+    
+    # Check if agent has a specific API configuration
+    agent_config = get_agent_api_config(agent_name)
+    if agent_config:
+        # Agent has specific API config - use it exclusively
+        provider = agent_config["provider"]
+        model = agent_config["model"]
+        
+        # Map frontend provider key to backend provider
+        backend_provider = _PROVIDERKEY_TO_PROVIDER.get(provider.lower(), provider)
+        
+        print(f"🎯 [Agent Override] {agent_name} -> {backend_provider} ({model or 'default'})")
+        
+        # Return single config with agent's specific settings
+        return [{
+            "provider": backend_provider,
+            "model": model or configs[0].get("model", "")  # Use agent's model or fallback to default
+        }]
+    
+    # No specific override - use old logic for backward compatibility
     overrides = get_agent_llm_overrides()
-    selected_pk = (overrides.get(agent_name) or "").strip().lower()
+    override_data = overrides.get(agent_name)
+    if not override_data:
+        return configs
+    
+    selected_pk = override_data.get("provider", "").strip().lower()
     if not selected_pk:
         return configs
+    
     selected_provider = _PROVIDERKEY_TO_PROVIDER.get(selected_pk)
     if not selected_provider:
         return configs
@@ -204,4 +270,4 @@ def get_agent_llm(agent_name: str):
     # Apply user override to reorder provider preference
     cfg_list = config if isinstance(config, list) else [config]
     cfg_list = _apply_agent_override(agent_name, cfg_list)
-    return ResilientChatModel(cfg_list)
+    return ResilientChatModel(cfg_list, agent_name=agent_name)

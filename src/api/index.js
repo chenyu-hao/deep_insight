@@ -9,6 +9,8 @@ const API_BASE_URL = "http://127.0.0.1:8000/api";
  * 通用请求函数
  */
 async function request(url, options = {}) {
+    console.log(`[API] Request: ${options.method || 'GET'} ${url}`, options.body ? JSON.parse(options.body) : '');
+    
     const response = await fetch(`${API_BASE_URL}${url}`, {
         ...options,
         headers: {
@@ -21,12 +23,26 @@ async function request(url, options = {}) {
         const error = await response
             .json()
             .catch(() => ({ detail: response.statusText }));
+        console.error(`[API] Error response:`, error);
+        
+        // 如果 detail 是数组（Pydantic 验证错误），格式化输出
+        if (Array.isArray(error.detail)) {
+            const errorMessages = error.detail.map(err => {
+                const loc = err.loc ? err.loc.join(' -> ') : 'unknown';
+                return `${loc}: ${err.msg} (type: ${err.type})`;
+            }).join('\n');
+            console.error('[API] Validation errors:\n', errorMessages);
+            throw new Error(`Validation failed:\n${errorMessages}`);
+        }
+        
         throw new Error(
             error.detail || `HTTP error! status: ${response.status}`
         );
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log(`[API] Response:`, data);
+    return data;
 }
 
 /**
@@ -256,6 +272,28 @@ export const api = {
      */
     async publishToXhs(payload) {
         return request("/xhs/publish", {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+    },
+
+    // --- 模型管理接口 ---
+
+    /**
+     * 获取所有提供商的模型列表
+     * @returns {Promise<Object>} - { "deepseek": [...], "gemini": [...], ... }
+     */
+    async getModels() {
+        return request("/models");
+    },
+
+    /**
+     * 验证提供商-模型组合是否有效
+     * @param {Object} payload - { provider: string, model: string }
+     * @returns {Promise<{valid: boolean, message: string}>}
+     */
+    async validateModel(payload) {
+        return request("/validate-model", {
             method: "POST",
             body: JSON.stringify(payload),
         });

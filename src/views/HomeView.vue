@@ -386,58 +386,66 @@
             <textarea :value="finalCopy" readonly
               class="w-full h-40 p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 font-mono resize-none focus:outline-none focus:border-blue-500 transition-colors"
               placeholder="等待辩论结束后，在此生成可直接发布的文案..."></textarea>
-            <button @click="analysisStore.startEditing"
-              :disabled="!finalCopy || finalCopy.length === 0"
-              class="absolute top-3 right-64 px-3 py-1.5 bg-blue-600 border border-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
-              <Edit class="w-3 h-3" />
-              编辑
-            </button>
-            <button @click="exportAllImages"
-              :disabled="isExportingImages || !(analysisStore.imageUrls && analysisStore.imageUrls.length)"
-              class="absolute top-3 right-28 px-3 py-1.5 bg-blue-600 border border-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
-              <Download class="w-3 h-3" />
-              {{ isExportingImages ? '导出中...' : '导出全部图片' }}
-            </button>
-            <button @click="copyToClipboard" :disabled="!finalCopy || finalCopy.length === 0"
-              class="absolute top-3 right-3 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
-              <Copy class="w-3 h-3" /> 复制全文
-            </button>
+            <!-- 文案相关操作：编辑 + 复制 -->
+            <div class="absolute top-3 right-3 flex items-center gap-2">
+              <button @click="analysisStore.startEditing"
+                :disabled="!finalCopy || finalCopy.length === 0"
+                class="px-3 py-1.5 bg-blue-600 border border-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
+                <Edit class="w-3 h-3" />
+                编辑
+              </button>
+              <button @click="copyToClipboard" :disabled="!finalCopy || finalCopy.length === 0"
+                class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
+                <Copy class="w-3 h-3" /> 复制全文
+              </button>
+            </div>
           </div>
 
           <!-- 编辑面板 -->
           <CopywritingEditor />
 
-          <!-- 底部栏：状态指示 + 发布按钮 -->
+          <!-- 底部栏：导出图片 + 状态指示 + 发布按钮 -->
           <div class="mt-2 flex items-center justify-between px-1">
-            <!-- 小红书 MCP 状态指示 -->
-            <div class="flex items-center gap-2 text-[10px]">
-              <div v-if="xhsStatus.loading" class="text-slate-400 flex items-center gap-1">
-                <Loader2 class="w-2.5 h-2.5 animate-spin" /> 检查服务...
-              </div>
-              <div v-else-if="xhsStatus.mcp_available && xhsStatus.login_status" class="text-green-600 flex items-center gap-1" title="服务正常，已登录">
-                <Check class="w-2.5 h-2.5" /> 小红书已连接
-              </div>
-              <div v-else-if="xhsStatus.mcp_available && !xhsStatus.login_status" class="text-orange-500 flex items-center gap-1 cursor-help" title="MCP服务已启动，但需要登录小红书">
-                <AlertTriangle class="w-2.5 h-2.5" /> 需登录小红书
-              </div>
-              <div v-else class="text-slate-400 flex items-center gap-1 cursor-help" title="请先启动 xiaohongshu-mcp 服务">
-                <XCircle class="w-2.5 h-2.5" /> 服务未连接
-              </div>
-            </div>
-
-            <!-- 小红书发布按钮 -->
-            <button @click="publishToXhs" 
-              :disabled="!finalCopy || finalCopy.length === 0 || isPublishing || !xhsStatus.mcp_available || !xhsStatus.login_status"
-              :class="[
-                'px-3 py-1.5 rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed',
-                (!xhsStatus.mcp_available || !xhsStatus.login_status) ? 'bg-slate-100 text-slate-400 border border-slate-200' : 'bg-red-500 hover:bg-red-600 text-white border border-red-500'
-              ]"
-              :title="(!xhsStatus.mcp_available ? 'MCP服务未启动' : (!xhsStatus.login_status ? '小红书未登录' : '点击发布'))"
-            >
-              <Upload v-if="!isPublishing" class="w-3 h-3" />
-              <Loader2 v-else class="w-3 h-3 animate-spin" />
-              {{ isPublishing ? '发布中...' : '发布到小红书' }}
+            <!-- 左侧：导出图片按钮 -->
+            <button @click="exportAllImages"
+              :disabled="isExportingImages || !(analysisStore.imageUrls && analysisStore.imageUrls.length)"
+              class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
+              <Download class="w-3 h-3" />
+              {{ isExportingImages ? '导出中...' : '导出全部图片' }}
             </button>
+            
+            <!-- 右侧：状态指示 + 发布按钮 -->
+            <div class="flex items-center gap-3">
+              <!-- 小红书 MCP 状态指示 -->
+              <div class="flex items-center gap-2 text-[10px]">
+                <div v-if="xhsStatus.loading" class="text-slate-400 flex items-center gap-1">
+                  <Loader2 class="w-2.5 h-2.5 animate-spin" /> 检查服务...
+                </div>
+                <div v-else-if="xhsStatus.mcp_available && xhsStatus.login_status" class="text-green-600 flex items-center gap-1" title="服务正常，已登录">
+                  <Check class="w-2.5 h-2.5" /> 小红书已连接
+                </div>
+                <div v-else-if="xhsStatus.mcp_available && !xhsStatus.login_status" class="text-orange-500 flex items-center gap-1 cursor-help" title="MCP服务已启动，但需要登录小红书">
+                  <AlertTriangle class="w-2.5 h-2.5" /> 需登录小红书
+                </div>
+                <div v-else class="text-slate-400 flex items-center gap-1 cursor-help" title="请先启动 xiaohongshu-mcp 服务">
+                  <XCircle class="w-2.5 h-2.5" /> 服务未连接
+                </div>
+              </div>
+
+              <!-- 小红书发布按钮 -->
+              <button @click="publishToXhs" 
+                :disabled="!finalCopy || finalCopy.length === 0 || isPublishing || !xhsStatus.mcp_available || !xhsStatus.login_status"
+                :class="[
+                  'px-3 py-1.5 rounded text-xs font-bold shadow-sm transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed',
+                  (!xhsStatus.mcp_available || !xhsStatus.login_status) ? 'bg-slate-100 text-slate-400 border border-slate-200' : 'bg-red-500 hover:bg-red-600 text-white border border-red-500'
+                ]"
+                :title="(!xhsStatus.mcp_available ? 'MCP服务未启动' : (!xhsStatus.login_status ? '小红书未登录' : '点击发布'))"
+              >
+                <Upload v-if="!isPublishing" class="w-3 h-3" />
+                <Loader2 v-else class="w-3 h-3 animate-spin" />
+                {{ isPublishing ? '发布中...' : '发布到小红书' }}
+              </button>
+            </div>
           </div>
         </div>
       </div>

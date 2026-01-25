@@ -146,6 +146,10 @@
                   <div class="min-w-0">
                     <h4 class="font-bold text-sm truncate text-slate-800">
                       {{ api.provider }}
+                      <span v-if="api.model" class="text-slate-500 font-normal">
+                        - {{ getModelDisplayName(api.providerKey, api.model) }}
+                      </span>
+                      <span v-else class="text-slate-400 font-normal text-xs">(默认)</span>
                     </h4>
                     <p class="text-xs text-slate-400 truncate font-mono">
                       ...{{ (api.key || '').substring(Math.max(0, (api.key || '').length - 4)) }}
@@ -181,22 +185,51 @@
                 <Save class="w-4 h-4" /> 保存绑定
               </button>
             </div>
-            <p class="text-xs text-slate-500 mb-4">为每个 Agent 选择一个厂商；未选择则使用后端默认（.env + 后端策略）。</p>
-            <div class="space-y-3">
-              <div v-for="a in agentList" :key="a.key" class="flex items-center justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="text-sm font-bold text-slate-700">{{ a.name }}</div>
-                  <div class="text-[10px] text-slate-400">{{ a.desc }}</div>
+            <p class="text-xs text-slate-500 mb-4">
+              为每个 Agent 选择已配置的 API；未选择则使用后端默认（.env + 后端策略）。
+              <span class="text-blue-600 font-semibold">只能选择上方已配置的 API。</span>
+            </p>
+            
+            <!-- 紧凑卡片式布局 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div v-for="a in agentList" :key="a.key" 
+                class="bg-white rounded-lg border border-slate-200 p-3 hover:border-blue-300 transition-colors">
+                <!-- Agent 名称和描述 -->
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                    {{ a.name.substring(0, 2).toUpperCase() }}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-bold text-slate-800">{{ a.name }}</div>
+                    <div class="text-[10px] text-slate-400 truncate">{{ a.desc }}</div>
+                  </div>
                 </div>
-                <select v-model="agentOverrides[a.key]"
-                  class="min-w-[220px] px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 bg-white">
-                  <option value="">后端默认（推荐）</option>
-                  <option v-for="opt in providerOptions" :key="opt.key" :value="opt.key">
-                    {{ opt.name }}
-                  </option>
-                </select>
+                
+                <!-- API 选择（从已配置的 API 中选择） -->
+                <div>
+                  <label class="text-[10px] text-slate-500 font-semibold mb-1 block">选择 API 配置</label>
+                  <select 
+                    v-model="agentOverrides[a.key].apiId"
+                    class="w-full px-2 py-1.5 border border-slate-200 rounded text-xs outline-none focus:border-blue-500 bg-white">
+                    <option value="">后端默认（.env 配置）</option>
+                    <option v-for="api in userApis" :key="api.id" :value="api.id">
+                      {{ api.provider }} - {{ getModelDisplayName(api.providerKey, api.model) }} (...{{ api.key.slice(-4) }})
+                    </option>
+                  </select>
+                  <p class="text-[9px] text-slate-400 mt-1">
+                    {{ getSelectedApiInfo(agentOverrides[a.key].apiId) }}
+                  </p>
+                </div>
               </div>
             </div>
+            
+            <!-- 提示：如果没有配置 API -->
+            <div v-if="userApis.length === 0" 
+              class="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700 flex items-center gap-2">
+              <AlertTriangle class="w-4 h-4" />
+              <span>请先在上方"API 接口配置"中添加 API Key，然后才能为 Agent 绑定。</span>
+            </div>
+            
             <div v-if="agentOverridesSaved"
               class="mt-4 p-3 rounded-lg bg-green-50 border border-green-200 text-xs text-green-700 flex items-center gap-2">
               <Check class="w-4 h-4" />
@@ -328,6 +361,25 @@
             </select>
           </div>
           <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">选择模型</label>
+            <select v-model="formData.model"
+              class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 bg-white">
+              <option value="">使用默认模型</option>
+              <option 
+                v-for="model in configStore.getModelsForProvider(formData.providerKey)" 
+                :key="model.id"
+                :value="model.id"
+              >
+                {{ model.name }}
+                <template v-if="model.is_default">(默认)</template>
+                <template v-if="model.description"> - {{ model.description }}</template>
+              </option>
+            </select>
+            <p class="text-[10px] text-slate-400 mt-1">
+              未选择时将使用该厂商的默认模型
+            </p>
+          </div>
+          <div>
             <label class="block text-xs font-semibold text-slate-500 mb-1">API Key</label>
             <input v-model="formData.key" type="password" placeholder="sk-...（可用逗号或换行粘贴多条）"
               class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 font-mono" />
@@ -395,6 +447,7 @@ const savePlatformSelection = () => {
 const formData = ref({
   providerKey: 'deepseek',
   provider: 'Deepseek',
+  model: '',  // 新增：选中的模型
   key: '',
 })
 
@@ -408,11 +461,38 @@ const providerNames = {
 }
 
 const loadApiSettings = () => {
-  userApis.value = configStore.getUserApis
+  let apis = configStore.getUserApis
+  
+  // 向后兼容：为旧配置自动添加默认模型
+  let needsMigration = false
+  apis = apis.map(api => {
+    if (!api.model && api.providerKey) {
+      needsMigration = true
+      const defaultModel = configStore.getDefaultModel(api.providerKey)
+      console.log(`[Settings] 迁移旧配置: ${api.provider} -> 默认模型: ${defaultModel}`)
+      return {
+        ...api,
+        model: defaultModel || ''
+      }
+    }
+    return api
+  })
+  
+  // 如果有迁移，保存更新后的配置
+  if (needsMigration) {
+    console.log('[Settings] 检测到旧格式配置，已自动迁移到新格式')
+    configStore.saveUserApis(apis)
+    syncUserApisToBackend()
+  }
+  
+  userApis.value = apis
 }
 
 const updateProviderMeta = () => {
   formData.value.provider = providerNames[formData.value.providerKey] || 'Deepseek'
+  // 切换提供商时，重置为该提供商的默认模型
+  const defaultModel = configStore.getDefaultModel(formData.value.providerKey)
+  formData.value.model = defaultModel || ''
 }
 
 const openEditModal = (id = null) => {
@@ -424,6 +504,7 @@ const openEditModal = (id = null) => {
       formData.value = {
         providerKey: allowed.includes(api.providerKey) ? api.providerKey : 'deepseek',
         provider: api.provider || providerNames[api.providerKey] || 'Deepseek',
+        model: api.model || '',  // 加载已保存的模型
         key: api.key,
       }
       updateProviderMeta()
@@ -432,6 +513,7 @@ const openEditModal = (id = null) => {
     formData.value = {
       providerKey: 'deepseek',
       provider: 'Deepseek',
+      model: '',
       key: '',
     }
     updateProviderMeta()
@@ -453,6 +535,7 @@ const saveApi = () => {
   const apiData = {
     provider: formData.value.provider,
     providerKey: formData.value.providerKey,
+    model: formData.value.model || '',  // 保存模型字段
     key: formData.value.key,
     active: true
   }
@@ -567,7 +650,23 @@ const agentList = [
   { key: 'translator', name: 'Translator', desc: '中->英 搜索关键词' },
 ]
 
-const agentOverrides = ref({})
+const agentOverrides = ref({
+  reporter: { apiId: '' },
+  analyst: { apiId: '' },
+  debater: { apiId: '' },
+  writer: { apiId: '' },
+  hotnews_interpretation_agent: { apiId: '' },
+  translator: { apiId: '' }
+})
+
+// 获取选中 API 的信息
+const getSelectedApiInfo = (apiId) => {
+  if (!apiId) return '使用后端默认配置'
+  const api = userApis.value.find(a => a.id === apiId)
+  if (!api) return '未找到对应的 API 配置'
+  const modelName = getModelDisplayName(api.providerKey, api.model)
+  return `将使用: ${api.provider} - ${modelName}`
+}
 
 const providerOptions = computed(() => {
   const allowed = Object.keys(providerNames)
@@ -584,16 +683,35 @@ const saveAgentOverrides = async () => {
   try {
     const payload = {}
     for (const a of agentList) {
-      const v = (agentOverrides.value?.[a.key] || '').trim()
-      if (v) payload[a.key] = v
+      const override = agentOverrides.value?.[a.key]
+      if (override && override.apiId) {
+        // 找到对应的 API 配置
+        const api = userApis.value.find(item => item.id === override.apiId)
+        if (api) {
+          // 保存提供商和模型信息（后端需要这些信息来调用 LLM）
+          payload[a.key] = {
+            provider: api.providerKey,
+            model: api.model || '',
+            apiId: api.id  // 保存 API ID 用于前端回显
+          }
+          console.log(`[Settings] Agent ${a.key} -> API:`, {
+            provider: api.providerKey,
+            model: api.model,
+            apiId: api.id
+          })
+        }
+      }
     }
+    console.log('[Settings] 完整 payload:', JSON.stringify(payload, null, 2))
     await api.updateUserSettings({ agent_llm_overrides: payload })
     agentOverridesSaved.value = true
+    console.log('[Settings] Agent 绑定已保存:', payload)
     setTimeout(() => {
       agentOverridesSaved.value = false
     }, 3000)
   } catch (e) {
     console.error('[Settings] 保存 Agent 绑定失败:', e)
+    console.error('[Settings] 错误详情:', e.message, e.stack)
     alert('保存 Agent 绑定失败: ' + (e?.message || e))
   }
 }
@@ -613,9 +731,36 @@ const loadUserSettings = async () => {
     if (data.volcengine) {
       volcengine.value = { ...volcengine.value, ...data.volcengine }
     }
-    // agent overrides
+    // agent overrides - 新逻辑：通过 apiId 关联
     if (data.agent_llm_overrides && typeof data.agent_llm_overrides === 'object') {
-      agentOverrides.value = { ...data.agent_llm_overrides }
+      for (const agentKey in data.agent_llm_overrides) {
+        const override = data.agent_llm_overrides[agentKey]
+        
+        if (typeof override === 'string') {
+          // 旧格式：只有提供商字符串 - 尝试找到匹配的 API
+          console.log(`[Settings] 迁移旧格式 Agent 配置: ${agentKey} -> ${override}`)
+          const matchedApi = userApis.value.find(a => a.providerKey === override)
+          agentOverrides.value[agentKey] = {
+            apiId: matchedApi ? matchedApi.id : ''
+          }
+        } else if (typeof override === 'object') {
+          // 新格式：包含 provider, model, apiId
+          if (override.apiId) {
+            // 有 apiId，直接使用
+            agentOverrides.value[agentKey] = {
+              apiId: override.apiId
+            }
+          } else if (override.provider && override.model) {
+            // 没有 apiId，但有 provider 和 model - 尝试匹配
+            const matchedApi = userApis.value.find(a => 
+              a.providerKey === override.provider && a.model === override.model
+            )
+            agentOverrides.value[agentKey] = {
+              apiId: matchedApi ? matchedApi.id : ''
+            }
+          }
+        }
+      }
     }
   } catch (e) {
     console.warn('[Settings] 加载后端 user-settings 失败，将使用本地设置:', e?.message || e)
@@ -703,6 +848,14 @@ const loadXhsConfig = () => {
   }
 }
 
+// 获取模型显示名称
+const getModelDisplayName = (providerKey, modelId) => {
+  if (!modelId) return '默认'
+  const models = configStore.getModelsForProvider(providerKey)
+  const model = models.find(m => m.id === modelId)
+  return model ? model.name : modelId
+}
+
 const clearAllSettings = async () => {
   if (!confirm('确定要清除所有本地缓存吗？这将删除所有保存的 API Keys、平台选择和其他设置。')) {
     return
@@ -755,11 +908,18 @@ const clearAllSettings = async () => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadApiSettings()
   loadUserSettings()
   loadPlatformSelection()
   loadHotNewsConfig()
   loadXhsConfig()
+  
+  // 加载模型列表
+  try {
+    await configStore.fetchModels()
+  } catch (e) {
+    console.error('[Settings] 加载模型列表失败:', e)
+  }
 })
 </script>

@@ -6,6 +6,8 @@ export const useConfigStore = defineStore('config', {
         config: null,
         loading: false,
         error: null,
+        modelsByProvider: null, // 缓存的模型列表
+        modelsCacheTime: null, // 缓存时间戳
     }),
 
     getters: {
@@ -23,6 +25,18 @@ export const useConfigStore = defineStore('config', {
                 }
             }
             return [];
+        },
+        // 获取指定提供商的模型列表
+        getModelsForProvider: (state) => (providerKey) => {
+            if (!state.modelsByProvider) return [];
+            return state.modelsByProvider[providerKey] || [];
+        },
+        // 获取指定提供商的默认模型
+        getDefaultModel: (state) => (providerKey) => {
+            if (!state.modelsByProvider) return null;
+            const models = state.modelsByProvider[providerKey] || [];
+            const defaultModel = models.find(m => m.is_default);
+            return defaultModel ? defaultModel.id : (models[0] ? models[0].id : null);
         },
     },
 
@@ -68,6 +82,60 @@ export const useConfigStore = defineStore('config', {
 
         saveUserApis(apis) {
             localStorage.setItem('grandchart_user_apis_v2', JSON.stringify(apis));
+        },
+
+        // 缓存模型列表
+        cacheModels(models) {
+            this.modelsByProvider = models;
+            this.modelsCacheTime = Date.now();
+            // 保存到 localStorage（24小时有效期）
+            localStorage.setItem('grandchart_models_cache', JSON.stringify({
+                models,
+                timestamp: this.modelsCacheTime
+            }));
+        },
+
+        // 加载缓存的模型列表
+        loadCachedModels() {
+            const cached = localStorage.getItem('grandchart_models_cache');
+            if (cached) {
+                try {
+                    const { models, timestamp } = JSON.parse(cached);
+                    const age = Date.now() - timestamp;
+                    const maxAge = 24 * 60 * 60 * 1000; // 24小时
+                    
+                    if (age < maxAge) {
+                        this.modelsByProvider = models;
+                        this.modelsCacheTime = timestamp;
+                        return true;
+                    }
+                } catch (e) {
+                    console.error('Failed to load cached models:', e);
+                }
+            }
+            return false;
+        },
+
+        // 获取模型列表（优先使用缓存）
+        async fetchModels(forceRefresh = false) {
+            // 如果不强制刷新，先尝试加载缓存
+            if (!forceRefresh && this.loadCachedModels()) {
+                return this.modelsByProvider;
+            }
+
+            // 从后端获取最新模型列表
+            try {
+                const models = await api.getModels();
+                this.cacheModels(models);
+                return models;
+            } catch (err) {
+                console.error('Failed to fetch models:', err);
+                // 如果获取失败但有缓存，使用缓存
+                if (this.modelsByProvider) {
+                    return this.modelsByProvider;
+                }
+                throw err;
+            }
         },
     },
 });

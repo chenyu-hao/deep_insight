@@ -41,8 +41,159 @@ class Config:
     ZHIPU_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
     ZHIPU_MODEL = "glm-4.7"
 
+    # --- 7. MiniMax ---
+    _minimax_keys_str = os.getenv("MINIMAX_API_KEYS", "")
+    MINIMAX_API_KEYS = [k.strip() for k in _minimax_keys_str.split(",") if k.strip()]
+    MINIMAX_BASE_URL = "https://api.minimax.chat/v1"
+    MINIMAX_MODEL = "MiniMax-M2.1"
+
+    # --- Provider Models Metadata ---
+    # Complete list of available models for each provider
+    PROVIDER_MODELS = {
+        "deepseek": [
+            {
+                "id": "deepseek-chat",
+                "name": "DeepSeek Chat",
+                "description": "平衡的对话模型，适合大多数任务",
+                "type": "chat",
+                "is_default": True
+            },
+            {
+                "id": "deepseek-reasoner",
+                "name": "DeepSeek Reasoner",
+                "description": "推理增强模型，适合复杂分析",
+                "type": "reasoning",
+                "is_default": False
+            }
+        ],
+        "gemini": [
+            {
+                "id": "gemini-3-pro-preview",
+                "name": "Gemini 3 Pro Preview",
+                "description": "最强大的模型，适合复杂任务",
+                "type": "pro",
+                "is_default": False
+            },
+            {
+                "id": "gemini-3-flash-preview",
+                "name": "Gemini 3 Flash Preview",
+                "description": "快速响应模型",
+                "type": "flash",
+                "is_default": True
+            },
+            {
+                "id": "gemini-2.5-flash",
+                "name": "Gemini 2.5 Flash",
+                "description": "稳定的快速模型",
+                "type": "flash",
+                "is_default": False
+            },
+            {
+                "id": "gemini-2.5-pro",
+                "name": "Gemini 2.5 Pro",
+                "description": "稳定的专业模型",
+                "type": "pro",
+                "is_default": False
+            }
+        ],
+        "kimi": [
+            {
+                "id": "kimi-k2-0905-preview",
+                "name": "Kimi K2 0905 Preview",
+                "description": "最新预览版本",
+                "type": "preview",
+                "is_default": False
+            },
+            {
+                "id": "kimi-k2-turbo-preview",
+                "name": "Kimi K2 Turbo Preview",
+                "description": "快速响应版本",
+                "type": "turbo",
+                "is_default": True
+            },
+            {
+                "id": "kimi-k2-thinking",
+                "name": "Kimi K2 Thinking",
+                "description": "深度思考模型",
+                "type": "thinking",
+                "is_default": False
+            }
+        ],
+        "zhipu": [
+            {
+                "id": "GLM-4.7",
+                "name": "GLM-4.7",
+                "description": "最新一代模型",
+                "type": "chat",
+                "is_default": True
+            },
+            {
+                "id": "GLM-4.7-FlashX",
+                "name": "GLM-4.7 FlashX",
+                "description": "极速响应版本",
+                "type": "flash",
+                "is_default": False
+            },
+            {
+                "id": "GLM-4.6",
+                "name": "GLM-4.6",
+                "description": "稳定版本",
+                "type": "chat",
+                "is_default": False
+            }
+        ],
+        "minimax": [
+            {
+                "id": "MiniMax-M2.1",
+                "name": "MiniMax M2.1",
+                "description": "最新版本",
+                "type": "chat",
+                "is_default": True
+            },
+            {
+                "id": "M2-her",
+                "name": "M2 HER",
+                "description": "高效推理版本",
+                "type": "reasoning",
+                "is_default": False
+            }
+        ],
+        "doubao": [
+            {
+                "id": "doubao-seed-1-8-251228",
+                "name": "豆包 Seed 1.8",
+                "description": "最新种子模型",
+                "type": "chat",
+                "is_default": True
+            },
+            {
+                "id": "doubao-seed-1-6-flash-250828",
+                "name": "豆包 Seed 1.6 Flash",
+                "description": "快速响应版本",
+                "type": "flash",
+                "is_default": False
+            }
+        ],
+        "openai": [
+            {
+                "id": "gpt-4",
+                "name": "GPT-4",
+                "description": "最强大的模型",
+                "type": "chat",
+                "is_default": False
+            },
+            {
+                "id": "gpt-3.5-turbo",
+                "name": "GPT-3.5 Turbo",
+                "description": "快速且经济的模型",
+                "type": "chat",
+                "is_default": True
+            }
+        ]
+    }
+
     # --- Agent Configuration (Select Provider Here) ---
-    # Options for provider: "moonshot", "gemini", "openai", "deepseek", "doubao", "zhipu"
+    # Options for provider: "moonshot", "gemini", "openai", "deepseek", "doubao", "zhipu", "minimax"
     # Supports fallback: if the first provider fails, it will try the next one
     AGENT_CONFIG = {
         "reporter": [
@@ -130,5 +281,31 @@ class Config:
         "mcp_url": os.getenv("XHS_MCP_URL", "http://localhost:18060/mcp"),
         "auto_publish": False,  # 工作流完成后是否自动发布
     }
+
+    # --- Model Management Methods ---
+    @classmethod
+    def get_all_models(cls):
+        """获取所有提供商的模型列表"""
+        return cls.PROVIDER_MODELS
+
+    @classmethod
+    def get_models_for_provider(cls, provider_key):
+        """获取指定提供商的模型列表"""
+        return cls.PROVIDER_MODELS.get(provider_key, [])
+
+    @classmethod
+    def get_default_model(cls, provider_key):
+        """获取指定提供商的默认模型"""
+        models = cls.get_models_for_provider(provider_key)
+        default = next((m for m in models if m.get("is_default")), None)
+        return default["id"] if default else (models[0]["id"] if models else None)
+
+    @classmethod
+    def validate_model(cls, provider_key, model_id):
+        """验证提供商-模型组合是否有效"""
+        if not provider_key or not model_id:
+            return False
+        models = cls.get_models_for_provider(provider_key)
+        return any(m["id"] == model_id for m in models)
 
 settings = Config()

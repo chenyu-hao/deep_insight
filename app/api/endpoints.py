@@ -375,6 +375,77 @@ async def get_user_settings():
 @router.put("/user-settings", response_model=UserSettingsResponse)
 async def put_user_settings(request: UserSettingsUpdateRequest):
     """更新前端可写入的用户设置（部分更新）"""
+    print(f"[DEBUG] Received user-settings update request")
+    print(f"[DEBUG] llm_apis: {request.llm_apis}")
+    print(f"[DEBUG] agent_llm_overrides: {request.agent_llm_overrides}")
+    print(f"[DEBUG] volcengine: {request.volcengine}")
+    
+    # 验证 llm_apis 中的模型配置
+    if request.llm_apis is not None:
+        for api in request.llm_apis:
+            provider_key = api.providerKey if hasattr(api, 'providerKey') else api.get('providerKey')
+            model = api.model if hasattr(api, 'model') else api.get('model')
+            
+            # 如果指定了模型，验证其有效性
+            if model and provider_key:
+                if not settings.validate_model(provider_key, model):
+                    available_models = settings.get_models_for_provider(provider_key)
+                    model_names = [m["id"] for m in available_models] if available_models else []
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"模型 {model} 在提供商 {provider_key} 中无效。可用模型: {', '.join(model_names)}"
+                    )
+    
+    # 验证 agent_llm_overrides 中的模型配置
+    if request.agent_llm_overrides is not None:
+        print(f"[DEBUG] Validating agent_llm_overrides: {request.agent_llm_overrides}")
+        for agent_key, override in request.agent_llm_overrides.items():
+            if isinstance(override, dict):
+                provider = override.get('provider')
+                model = override.get('model')
+                
+                print(f"[DEBUG] Agent {agent_key}: provider={provider}, model={model}")
+                
+                # 如果没有指定模型，跳过验证（使用默认）
+                if not model:
+                    print(f"[DEBUG] Agent {agent_key}: No model specified, skipping validation")
+                    continue
+                
+                # 验证提供商是否存在
+                if provider and provider not in settings.PROVIDER_MODELS:
+                    print(f"[DEBUG] Agent {agent_key}: Invalid provider {provider}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Agent {agent_key} 的提供商配置无效: {provider} 不是有效的提供商。可用提供商: {', '.join(settings.PROVIDER_MODELS.keys())}"
+                    )
+                
+                # 验证模型是否存在
+                if model and provider:
+                    if not settings.validate_model(provider, model):
+                        available_models = settings.get_models_for_provider(provider)
+                        model_names = [m["id"] for m in available_models] if available_models else []
+                        print(f"[DEBUG] Agent {agent_key}: Invalid model {model} for provider {provider}")
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Agent {agent_key} 的模型配置无效: {model} 在提供商 {provider} 中不存在。可用模型: {', '.join(model_names)}"
+                        )
+                
+                # 验证降级链
+                fallbacks = override.get('fallbacks', [])
+                if fallbacks:
+                    for idx, fallback in enumerate(fallbacks):
+                        fb_provider = fallback.get('provider')
+                        fb_model = fallback.get('model')
+                        
+                        if fb_model and fb_provider:
+                            if not settings.validate_model(fb_provider, fb_model):
+                                available_models = settings.get_models_for_provider(fb_provider)
+                                model_names = [m["id"] for m in available_models] if available_models else []
+                                raise HTTPException(
+                                    status_code=400,
+                                    detail=f"Agent {agent_key} 的降级选项 #{idx+1} 无效: {fb_model} 在提供商 {fb_provider} 中不存在。可用模型: {', '.join(model_names)}"
+                                )
+    
     merged = update_user_settings(
         llm_apis=[x.model_dump() for x in request.llm_apis] if request.llm_apis is not None else None,
         volcengine=request.volcengine.model_dump() if request.volcengine is not None else None,
@@ -1076,6 +1147,74 @@ async def get_supported_platforms():
         "total_supported": len(TOPHUB_SOURCES) + 1,
         "total_pending": len(PENDING_PLATFORMS)
     }
+
+
+# --- 模型管理接口 ---
+
+@router.get("/models")
+async def get_models():
+    """获取所有提供商的模型列表
+    
+    返回格式：
+    {
+        "deepseek": [
+            {"id": "deepseek-chat", "name": "DeepSeek Chat", "description": "...", "type": "chat", "is_default": true},
+            ...
+        ],
+        "gemini": [...],
+        ...
+    }
+    """
+    models = settings.get_all_models()
+    return models
+
+
+@router.post("/validate-model")
+async def validate_model(payload: dict):
+    """验证提供商-模型组合是否有效
+    
+    请求体：
+    {
+        "provider": "deepseek",
+        "model": "deepseek-chat"
+    }
+    
+    返回：
+    {
+        "valid": true/false,
+        "message": "验证消息"
+    }
+    """
+    provider = payload.get("provider", "").strip()
+    model = payload.get("model", "").strip()
+    
+    if not provider or not model:
+        return {
+            "valid": False,
+            "message": "提供商和模型参数不能为空"
+        }
+    
+    is_valid = settings.validate_model(provider, model)
+    
+    if is_valid:
+        return {
+            "valid": True,
+            "message": f"模型 {model} 在提供商 {provider} 中有效"
+        }
+    else:
+        # 获取该提供商的可用模型列表
+        available_models = settings.get_models_for_provider(provider)
+        if available_models:
+            model_names = [m["id"] for m in available_models]
+            return {
+                "valid": False,
+                "message": f"模型 {model} 在提供商 {provider} 中无效。可用模型: {', '.join(model_names)}"
+            }
+        else:
+            return {
+                "valid": False,
+                "message": f"提供商 {provider} 不存在或没有可用模型"
+            }
 
 
 # --- 小红书 MCP 发布接口 ---
