@@ -1319,14 +1319,12 @@ const publishToXhs = async () => {
   
   if (!titleToPublish || !bodyToPublish) return
   
-  // 获取选中的图片（按用户排序）
+  // 获取用户编辑后的图片顺序（保留索引信息）
   const allImages = [null, ...analysisStore.imageUrls] // null 代表标题卡
-  const selectedImages = editableContent.value.imageOrder
+  const orderedIndices = editableContent.value.imageOrder
     .filter(idx => editableContent.value.selectedImageIndices.includes(idx))
-    .map(idx => allImages[idx])
-    .filter(img => img !== null) // 过滤掉标题卡（暂时）
   
-  if (selectedImages.length === 0) {
+  if (orderedIndices.length === 0) {
     alert('发布失败：至少需要一张配图')
     return
   }
@@ -1337,31 +1335,38 @@ const publishToXhs = async () => {
   const originalIndex = currentDisplayIndex.value
   
   try {
-    // Step 1: Generate Title Card using Canvas API (if selected)
-    let titleCardDataUrl = null
-    const titleCardSelected = editableContent.value.selectedImageIndices.includes(0)
+    // 按照用户编辑的顺序构建最终图片列表
+    const allImagesToPublish = []
     
-    if (titleCardSelected) {
-      try {
-        titleCardDataUrl = await generateTitleCardImage({
-          title: titleToPublish,
-          emoji: analysisStore.titleEmoji,
-          theme: analysisStore.titleTheme,
-          emojiPos: emojiPosition.value
-        })
-        console.log('[Publish] Title Card generated successfully via Canvas API')
-      } catch (e) {
-        console.error('[Publish] Title Card generation failed:', e)
+    for (const idx of orderedIndices) {
+      if (idx === 0) {
+        // 在用户指定的位置生成标题卡
+        try {
+          const titleCardDataUrl = await generateTitleCardImage({
+            title: titleToPublish,
+            emoji: analysisStore.titleEmoji,
+            theme: analysisStore.titleTheme,
+            emojiPos: emojiPosition.value
+          })
+          allImagesToPublish.push(titleCardDataUrl)
+          console.log('[Publish] ✅ 标题卡已生成并插入到位置', allImagesToPublish.length - 1)
+        } catch (e) {
+          console.error('[Publish] ❌ 标题卡生成失败:', e)
+          // 如果生成失败，跳过标题卡
+        }
+      } else {
+        // 添加 AI 图片
+        allImagesToPublish.push(allImages[idx])
+        console.log('[Publish] ✅ AI图片已添加到位置', allImagesToPublish.length - 1, '原始索引:', idx)
       }
     }
     
-    // Step 2: Build final images list
-    let allImagesToPublish = [...selectedImages]
-    if (titleCardDataUrl) {
-      // Prepend title card if it was selected
-      allImagesToPublish = [titleCardDataUrl, ...selectedImages]
-      console.log('[Publish] Title Card prepended to images list')
+    if (allImagesToPublish.length === 0) {
+      alert('发布失败：图片处理失败')
+      return
     }
+    
+    console.log('[Publish] 📋 最终图片顺序:', orderedIndices, '总数:', allImagesToPublish.length)
     
     // Extract hashtags from body and pass them separately
     const body = bodyToPublish || ''
