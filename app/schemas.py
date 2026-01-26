@@ -15,6 +15,7 @@ class AgentState(BaseModel):
     model: Optional[str] = None  # Optional: model name used
     image_urls: Optional[List[str]] = None  # Optional: generated image URLs
     dataview_images: Optional[List[str]] = None  # Optional: DataView card image URLs
+    platform_stats: Optional[Dict[str, int]] = None  # Optional: platform data counts {platform_code: count}
 
 class CrawlerDataItem(BaseModel):
     """Standardized crawler data item"""

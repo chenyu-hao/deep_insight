@@ -93,41 +93,64 @@ const generateImage = async () => {
   ctx.fillStyle = '#f5f5f5'
   ctx.fillRect(0, 0, WIDTH, HEIGHT)
   
-  // 2. 顶部标题
-  // 标题图标背景圆
-  ctx.fillStyle = '#8b5cf6'
+  // 2. 顶部标题区域（与 InsightCanvas/KeyFindingsCanvas 一致）
+  const headerY = 80
+  const headerHeight = 120
+  
+  // 绘制图标背景圆
+  ctx.fillStyle = '#e9d5ff'  // 紫色系背景
   ctx.beginPath()
-  ctx.arc(100, 80, 40, 0, Math.PI * 2)
+  ctx.arc(120, headerY + headerHeight / 2, 50, 0, Math.PI * 2)
   ctx.fill()
   
-  // 标题图标
-  ctx.font = '48px "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
+  // 绘制 Emoji
+  ctx.font = '60px "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText('🔀', 100, 80)
+  ctx.fillText('🔀', 120, headerY + headerHeight / 2)
   
   // 标题文字
   ctx.fillStyle = '#1e293b'
-  ctx.font = 'bold 56px "PingFang SC", "Microsoft YaHei", sans-serif'
+  ctx.font = 'bold 72px "PingFang SC", "Microsoft YaHei", sans-serif'
   ctx.textAlign = 'left'
-  ctx.fillText('辩论演化过程', 180, 90)
+  ctx.textBaseline = 'middle'
+  ctx.fillText('辩论演化过程', 200, headerY + headerHeight / 2)
   
-  // 3. 时间线内容 - 计算总高度并垂直居中
-  const headerY = 100
-  const headerHeight = 120
-  const summaryHeight = 120
-  const summaryMargin = 20
+  // 3. 布局计算 - 简化且正确的垂直居中算法
+  // 
+  // 画布布局：
+  // [0-80]        顶部留白
+  // [80-200]      标题区域 (headerY=80, headerHeight=120)
+  // [200-260]     标题与时间线间距 (60px)
+  // [260-1260]    时间线内容区域 (1000px 可用)
+  // [1260-1340]   时间线与总结框间距 (80px，包含总结框)
+  // [1340-1440]   底部水印区域 (100px)
   
-  // 🔧 计算时间线内容的总高度
-  // 时间线高度 = (轮数-1) * 间距 + 第一个卡片的上半部分 + 最后一个卡片的下半部分
-  const timelineContentHeight = (timeline.length - 1) * layout.itemSpacing + layout.cardHeight
-  const totalContentHeight = timelineContentHeight + summaryMargin + summaryHeight
+  const PADDING_TOP = 60           // 标题下方间距
+  const PADDING_BOTTOM = 60        // 总结框上方间距
+  const SUMMARY_BOX_HEIGHT = 100   // 绿色总结框高度
+  const WATERMARK_AREA = 80        // 底部水印区域
   
-  // 计算可用空间（画布高度 - 顶部标题 - 底部水印）
-  const availableHeight = HEIGHT - (headerY + headerHeight) - 80
+  // 可用于时间线的区域
+  const contentAreaTop = headerY + headerHeight + PADDING_TOP
+  const contentAreaBottom = HEIGHT - WATERMARK_AREA - SUMMARY_BOX_HEIGHT - PADDING_BOTTOM
+  const availableHeight = contentAreaBottom - contentAreaTop
   
-  // 计算起始Y坐标，使内容垂直居中
-  const startY = headerY + headerHeight + (availableHeight - totalContentHeight) / 2
+  // 计算时间线实际需要的高度
+  // 时间线高度 = 第一个圆心到最后一个圆心的距离 + 卡片高度（因为卡片以圆心为中心）
+  const timelineHeight = (timeline.length - 1) * layout.itemSpacing + layout.cardHeight
+  
+  // 计算起始Y（第一个圆心的位置），使时间线在可用区域内垂直居中
+  const startY = contentAreaTop + (availableHeight - timelineHeight) / 2 + layout.cardHeight / 2
+  
+  console.log('[DebateTimelineCanvas] 📐 布局计算:', {
+    contentAreaTop,
+    contentAreaBottom,
+    availableHeight,
+    timelineHeight,
+    startY,
+    rounds: timeline.length
+  })
   
   const circleX = 125          // 🔧 调整这里：左侧圆圈的X坐标（增大向右移动）
   const cardX = 200            // 🔧 调整这里：右侧卡片的X坐标
@@ -201,13 +224,13 @@ const generateImage = async () => {
     })
   })
   
-  // 4. 底部总结卡片
-  const summaryY = startY + timeline.length * layout.itemSpacing + summaryMargin
+  // 4. 底部总结卡片（固定位置，在水印上方）
+  const summaryY = HEIGHT - WATERMARK_AREA - SUMMARY_BOX_HEIGHT
   
   // 总结卡片背景
   ctx.fillStyle = '#d1fae5'
   ctx.beginPath()
-  ctx.roundRect(80, summaryY, WIDTH - 160, 100, 16)
+  ctx.roundRect(80, summaryY, WIDTH - 160, SUMMARY_BOX_HEIGHT, 16)
   ctx.fill()
   
   // 勾选图标

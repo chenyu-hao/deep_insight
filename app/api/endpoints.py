@@ -254,12 +254,21 @@ async def analyze_news(request: NewsRequest):
                     
                     print(f"[SSE] 发送事件: {display_name}, 内容长度: {len(content)}")
                     
+                    # 提取平台统计数据（Crawler 完成时）
+                    platform_stats = None
+                    if node_name == "crawler_agent":
+                        platform_data = state_update.get("platform_data", {})
+                        if platform_data:
+                            platform_stats = {p: len(items) for p, items in platform_data.items()}
+                            print(f"[SSE] 发送平台统计: {platform_stats}")
+                    
                     agent_state = AgentState(
                         agent_name=display_name,
                         step_content=content,
                         status="thinking",
                         image_urls=state_update.get("image_urls"),
-                        dataview_images=state_update.get("dataview_images")
+                        dataview_images=state_update.get("dataview_images"),
+                        platform_stats=platform_stats
                     )
                     
                     # Yield SSE format

@@ -53,6 +53,7 @@ export const useAnalysisStore = defineStore("analysis", {
             dataViewImages: cachedResults?.dataViewImages || [], // 新增：数据视图卡片图片
             titleEmoji: cachedResults?.titleEmoji || "🤔", // Title Card emoji (default)
             titleTheme: cachedResults?.titleTheme || "cool", // Title Card color theme: warm/cool/alert/dark
+            platformStats: cachedResults?.platformStats || null, // 平台爬取统计 {platform_code: count}
             
             // 编辑状态
             isEditing: false,
@@ -128,37 +129,29 @@ export const useAnalysisStore = defineStore("analysis", {
                 };
             }
 
-            // 基于实际数据计算平台热度
-            // 1. 统计每个平台在日志中被提及的次数
-            const platformMentions = {};
-            platforms.forEach(p => {
-                platformMentions[p] = 0;
-            });
+            // 使用后端返回的真实平台统计数据
+            const realStats = state.platformStats || {};
+            const hasRealData = Object.keys(realStats).length > 0;
             
-            // 遍历所有日志，统计平台提及次数
-            state.logs.forEach(log => {
-                const content = (log.step_content || '').toLowerCase();
-                platforms.forEach(p => {
-                    const platformName = (platformNameMap[p] || p).toLowerCase();
-                    // 统计平台名称出现次数
-                    const regex = new RegExp(platformName, 'gi');
-                    const matches = content.match(regex);
-                    if (matches) {
-                        platformMentions[p] += matches.length;
-                    }
-                });
-            });
+            // 计算最大值用于归一化
+            const maxCount = hasRealData 
+                ? Math.max(...Object.values(realStats), 1) 
+                : 1;
             
-            // 2. 计算热度值（归一化到 60-100 范围）
-            const maxMentions = Math.max(...Object.values(platformMentions), 1);
             const platformData = platforms.map(p => {
                 const platformName = platformNameMap[p] || p;
-                const mentions = platformMentions[p];
-                // 归一化：至少60分，最多100分
-                const normalizedValue = mentions > 0 
-                    ? Math.round(60 + (mentions / maxMentions) * 40)
-                    : 60;
-                return { name: platformName, value: normalizedValue };
+                
+                if (hasRealData) {
+                    // 使用真实数据：归一化到 50-100 范围
+                    const count = realStats[p] || 0;
+                    const normalized = count > 0 
+                        ? 50 + (count / maxCount) * 50 
+                        : 50;
+                    return { name: platformName, value: Math.round(normalized) };
+                } else {
+                    // 无数据时显示基础值
+                    return { name: platformName, value: 60 };
+                }
             });
 
             return {
@@ -320,6 +313,7 @@ export const useAnalysisStore = defineStore("analysis", {
                 dataViewImages: this.dataViewImages,
                 titleEmoji: this.titleEmoji,
                 titleTheme: this.titleTheme,
+                platformStats: this.platformStats,
                 selectedImageIndices: this.editableContent.selectedImageIndices,
                 imageOrder: this.editableContent.imageOrder,
             };
@@ -438,6 +432,7 @@ export const useAnalysisStore = defineStore("analysis", {
             this.dataViewImages = []; // 清空旧的 DataView 图片
             this.titleEmoji = "🤔";
             this.titleTheme = "cool";
+            this.platformStats = null; // 清空平台统计
             this.isLoading = true;
             this.error = null;
             
@@ -520,6 +515,7 @@ export const useAnalysisStore = defineStore("analysis", {
                             50
                         ),
                         has_model: !!data.model,
+                        has_platform_stats: !!data.platform_stats,
                     });
 
                     // 使用 Vue 的响应式方式更新数组
@@ -532,6 +528,13 @@ export const useAnalysisStore = defineStore("analysis", {
                         agent: data.agent_name,
                         content_length: (data.step_content || "").length,
                     });
+
+                    // 处理 Crawler 输出，保存平台统计
+                    if (data.agent_name === "Crawler" && data.platform_stats) {
+                        this.platformStats = data.platform_stats;
+                        console.log("[AnalysisStore] 📊 平台统计已保存:", this.platformStats);
+                        this.saveResultsToSession();
+                    }
 
                     // 处理Analyst输出，解析洞察
                     if (data.agent_name === "Analyst" && data.step_content) {
