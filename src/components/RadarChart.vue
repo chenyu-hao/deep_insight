@@ -10,6 +10,11 @@
         <span class="text-xs font-bold text-slate-800">{{ data.datasets[0].data[index] }}</span>
       </div>
     </div>
+
+    <!-- 数据说明 -->
+    <div class="mt-3 text-center">
+      <span class="text-[10px] text-slate-400 italic">* 数值基于各平台实际爬取内容数量归一化</span>
+    </div>
   </div>
 </template>
 

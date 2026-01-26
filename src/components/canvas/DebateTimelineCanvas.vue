@@ -250,10 +250,16 @@ const generateImage = async () => {
   ctx.fillText(summaryText, 190, summaryY + 50)
   
   // 5. 底部水印
+  // 数据来源说明
+  ctx.fillStyle = '#94a3b8'
+  ctx.font = '22px "PingFang SC", "Microsoft YaHei", sans-serif'
+  ctx.textAlign = 'center'
+  ctx.fillText('* 推理过程由 Multi-Agent Debate 框架自动生成', WIDTH / 2, HEIGHT - 65)
+  
+  // 品牌水印
   ctx.fillStyle = '#94a3b8'
   ctx.font = '24px "PingFang SC", "Microsoft YaHei", sans-serif'
-  ctx.textAlign = 'center'
-  ctx.fillText('@观潮GlobalInSight · AI舆情洞察', WIDTH / 2, HEIGHT - 40)
+  ctx.fillText('@观潮GlobalInSight · AI舆情洞察', WIDTH / 2, HEIGHT - 35)
   
   const dataUrl = canvas.toDataURL('image/png')
   console.log('[DebateTimelineCanvas] ✅ 辩论时间线生成完成，大小:', dataUrl.length, 'bytes')

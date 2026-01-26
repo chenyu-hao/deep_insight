@@ -28,6 +28,11 @@
         增速：<strong :class="growthColor">{{ formatGrowth(data.growth) }}</strong>
       </div>
     </div>
+
+    <!-- 数据说明 -->
+    <div class="mt-3 text-center">
+      <span class="text-[10px] text-slate-400 italic">* 热度趋势基于语义分析的 AI 推演模型生成</span>
+    </div>
   </div>
 </template>
 

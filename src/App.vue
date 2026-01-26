@@ -48,7 +48,7 @@
     </nav>
 
     <!-- Main Content -->
-    <main class="flex-grow relative pb-20">
+    <main class="flex-grow relative">
       <!-- Hot View: 热榜 -->
       <HotView v-if="currentTab === 'hot'" @switch-tab="switchTab" />
 
@@ -67,12 +67,28 @@
       <!-- Settings View: 设置 -->
       <SettingsView v-if="currentTab === 'settings'" @api-updated="handleApiUpdated" />
     </main>
+
+    <!-- Global Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4">
+      <div class="max-w-7xl mx-auto px-4 text-center">
+        <p class="text-xs text-slate-500 font-medium">
+          观潮 GlobalInSight · Powered by Multi-Agent Debate + LangGraph
+        </p>
+        <p class="text-xs text-slate-400 mt-1">
+          © 2026 Napstablook · 
+          <a href="https://github.com/papysans/GlobalInSight" target="_blank" 
+             class="hover:text-blue-500 transition-colors inline-flex items-center gap-1">
+            <Github class="w-3 h-3" /> GitHub
+          </a>
+        </p>
+      </div>
+    </footer>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
-import { Waves, Zap, PieChart, Network, Flag, Settings, Flame } from 'lucide-vue-next'
+import { Waves, Zap, PieChart, Network, Flag, Settings, Flame, Github } from 'lucide-vue-next'
 import logo from './logo/logo-light.png'
 import HomeView from './views/HomeView.vue'
 import HotView from './views/HotView.vue'
