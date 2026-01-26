@@ -623,7 +623,7 @@ const initChart = async () => {
       ctx.globalAlpha = 0.4
       ctx.font = '12px "Noto Sans SC"'
       ctx.textAlign = 'center'
-      ctx.fillText('@观潮GrandChart · AI舆情洞察', width / 2, height - 30)
+      ctx.fillText('@观潮GlobalInSight · AI舆情洞察', width / 2, height - 30)
       ctx.restore()
     }
   }

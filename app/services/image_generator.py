@@ -5,7 +5,7 @@ import re
 from typing import List, Optional, Dict, Any
 from app.config import settings
 from app.llm import get_agent_llm
-from app.services.user_settings import get_effective_volcengine_credentials
+from app.services.user_settings import get_effective_volcengine_credentials, get_image_generation_count
 from langchain_core.messages import SystemMessage, HumanMessage
 
 try:
@@ -14,9 +14,9 @@ try:
 except Exception:  # pragma: no cover
     VisualService = None  # type: ignore
 
-IMAGE_PROMPT_GENERATOR_PROMPT = """
+IMAGE_PROMPT_GENERATOR_PROMPT_TEMPLATE = """
 你是一个专业的AI绘画提示词专家，擅长为文生图模型编写高质量的提示词。
-你的任务是根据提供的小红书文案内容和**核心洞察（Grand Insight）**，生成 **2 条彼此不同** 的文生图提示词，每条提示词用于生成 **1 张** 小红书风格图片。
+你的任务是根据提供的小红书文案内容和**核心洞察（Grand Insight）**，生成 **{count} 条彼此不同** 的文生图提示词，每条提示词用于生成 **1 张** 小红书风格图片。
 
 **核心目标**：
 1. **氛围感增强**：图片必须具有强烈的氛围感（Atmosphere），与文案的情绪基调完美契合。
@@ -35,15 +35,19 @@ IMAGE_PROMPT_GENERATOR_PROMPT = """
 - 提示词中可以包含英文关键词（推荐），效果更准确。
 
 **输出格式要求（必须严格遵守）**：
-只输出一个 JSON 数组（list），数组中严格包含 **2 个** 字符串，每个字符串是一条提示词。
+只输出一个 JSON 数组（list），数组中严格包含 **{count} 个** 字符串，每个字符串是一条提示词。
 不要输出任何解释、序号、Markdown 代码块标记。
 
 示例（仅示意格式）：
 ["An aesthetic photo of..., soft lighting, coquette style", "A cinematic shot of..., moody atmosphere, high contrast"]
 """
 
+def get_image_prompt_generator_prompt(count: int) -> str:
+    """根据生图张数生成对应的提示词"""
+    return IMAGE_PROMPT_GENERATOR_PROMPT_TEMPLATE.format(count=count)
+
 DEFAULT_REQ_KEY = "jimeng_t2i_v40"
-MAX_IMAGES = 2
+MAX_IMAGES = 2  # 默认生成2张图片
 DEFAULT_WIDTH = 1024
 DEFAULT_HEIGHT = 1024
 DEFAULT_STEPS = 30
@@ -122,12 +126,15 @@ class ImageGeneratorService:
         """Generate multiple single-image prompts based on the content using LLM."""
         llm = get_agent_llm("writer") # Use writer's LLM or a dedicated one
         
-        user_prompt = f"请根据以下文案生成 2 条AI绘画提示词：\n\n【文案内容】：\n{content}"
+        # 获取用户配置的生图张数
+        image_count = get_image_generation_count()
+        
+        user_prompt = f"请根据以下文案生成 {image_count} 条AI绘画提示词：\n\n【文案内容】：\n{content}"
         if insight:
             user_prompt += f"\n\n【核心洞察（Grand Insight）】：\n{insight}\n\n请确保画面元素与此洞察产生共鸣。"
 
         messages = [
-            SystemMessage(content=IMAGE_PROMPT_GENERATOR_PROMPT),
+            SystemMessage(content=get_image_prompt_generator_prompt(image_count)),
             HumanMessage(content=user_prompt)
         ]
         response = await llm.ainvoke(messages)
@@ -135,9 +142,9 @@ class ImageGeneratorService:
         from app.services.workflow import extract_text_content
         raw = extract_text_content(response.content)
         prompts = self._parse_prompts(raw)
-        # Hard guard: cap to MAX_IMAGES
-        if len(prompts) > MAX_IMAGES:
-            prompts = prompts[:MAX_IMAGES]
+        # Hard guard: cap to configured count
+        if len(prompts) > image_count:
+            prompts = prompts[:image_count]
         return prompts
 
     async def submit_task(self, prompt: str) -> Optional[str]:
@@ -240,15 +247,17 @@ class ImageGeneratorService:
         if not cfg.get("access_key") or not cfg.get("secret_key"):
             print("[IMAGE] Volcengine keys not configured (env or user-settings).")
             return []
-            
-        print(f"[IMAGE] Generating prompts (Target: {MAX_IMAGES})...")
+        
+        # 获取用户配置的生图张数
+        image_count = get_image_generation_count()
+        print(f"[IMAGE] Generating prompts (Target: {image_count})...")
         prompts = await self.generate_image_prompts(content, insight=insight)
         if not prompts:
             print("[IMAGE] No prompts generated.")
             return []
 
         # Guard: if LLM returned fewer than expected, still proceed
-        if len(prompts) < MAX_IMAGES:
+        if len(prompts) < image_count:
             print(f"[IMAGE] Warning: only {len(prompts)} prompt(s) generated.")
 
         image_urls: List[str] = []

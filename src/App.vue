@@ -7,7 +7,7 @@
           <div class="flex items-center gap-2 cursor-pointer" @click="switchTab('home')">
             <img :src="logo" alt="Logo" class="w-16 h-16 object-cover mix-blend-multiply" />
             <span class="text-xl font-bold text-slate-800 tracking-tight">
-              观潮 <span class="font-light text-blue-600">GrandChart</span>
+              观潮 <span class="font-mid text-blue-600">GlobalInSight</span>
             </span>
           </div>
 

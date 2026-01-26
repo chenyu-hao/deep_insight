@@ -48,6 +48,18 @@ def get_volcengine_settings() -> Dict[str, Any]:
     return volc if isinstance(volc, dict) else {}
 
 
+def get_image_generation_count() -> int:
+    """
+    Get the number of images to generate.
+    Returns the user-configured count or default (2).
+    """
+    volc = get_volcengine_settings()
+    count = volc.get("image_count")
+    if isinstance(count, int) and 1 <= count <= 9:
+        return count
+    return 2  # 默认生成2张图片
+
+
 def get_agent_llm_overrides() -> Dict[str, Dict[str, Any]]:
     """
     Get agent LLM overrides in new format: {agent_name: {provider, model, apiId}}

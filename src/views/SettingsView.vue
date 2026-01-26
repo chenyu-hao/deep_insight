@@ -262,6 +262,26 @@
             </div>
           </div>
 
+          <!-- 新增：AI生图张数选择 -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">AI生图张数</label>
+            <select v-model.number="volcengine.image_count" @change="saveVolcengineConfig"
+              class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-purple-500 bg-white">
+              <option :value="1">1 张</option>
+              <option :value="2">2 张（默认）</option>
+              <option :value="3">3 张</option>
+              <option :value="4">4 张</option>
+              <option :value="5">5 张</option>
+              <option :value="6">6 张</option>
+              <option :value="7">7 张</option>
+              <option :value="8">8 张</option>
+              <option :value="9">9 张</option>
+            </select>
+            <p class="text-[10px] text-slate-400 mt-1">
+              每次工作流生成的图片数量（1-9张）。生成更多图片会增加耗时和费用。选择后自动保存。
+            </p>
+          </div>
+
           <div class="flex items-center justify-between pt-2">
             <p class="text-[10px] text-slate-400">
               未填写 AK/SK 时，后端会继续使用 `.env` 中的 VOLC_ACCESS_KEY / VOLC_SECRET_KEY。
@@ -635,6 +655,7 @@ const saveHotNewsConfig = async () => {
 const volcengine = ref({
   access_key: '',
   secret_key: '',
+  image_count: 2,  // 默认生成2张图片
 })
 
 const volcengineSaved = ref(false)
@@ -718,7 +739,10 @@ const saveAgentOverrides = async () => {
 
 const loadUserSettings = async () => {
   try {
+    console.log('[Settings] 开始加载用户设置...')
     const data = await api.getUserSettings()
+    console.log('[Settings] 后端返回的数据:', data)
+    
     // LLM apis
     if (Array.isArray(data.llm_apis) && data.llm_apis.length > 0) {
       userApis.value = data.llm_apis
@@ -728,8 +752,13 @@ const loadUserSettings = async () => {
       await api.updateUserSettings({ llm_apis: userApis.value })
     }
     // volcengine
+    console.log('[Settings] 加载前 volcengine.value:', JSON.parse(JSON.stringify(volcengine.value)))
     if (data.volcengine) {
+      console.log('[Settings] 后端返回的 volcengine:', data.volcengine)
       volcengine.value = { ...volcengine.value, ...data.volcengine }
+      console.log('[Settings] 已加载火山引擎配置:', volcengine.value)
+    } else {
+      console.log('[Settings] 后端没有返回 volcengine 配置')
     }
     // agent overrides - 新逻辑：通过 apiId 关联
     if (data.agent_llm_overrides && typeof data.agent_llm_overrides === 'object') {
@@ -769,8 +798,10 @@ const loadUserSettings = async () => {
 
 const saveVolcengineConfig = async () => {
   try {
+    console.log('[Settings] 正在保存火山引擎配置:', volcengine.value)
     await api.updateUserSettings({ volcengine: volcengine.value })
     volcengineSaved.value = true
+    console.log('[Settings] 火山引擎配置已保存')
     setTimeout(() => {
       volcengineSaved.value = false
     }, 3000)
@@ -883,6 +914,7 @@ const clearAllSettings = async () => {
     volcengine.value = {
       access_key: '',
       secret_key: '',
+      image_count: 2,
     }
     agentOverrides.value = {}
     xhsConfig.value = { mcp_url: 'http://localhost:18060/mcp' }
@@ -890,7 +922,7 @@ const clearAllSettings = async () => {
     // 清空后端设置
     await api.updateUserSettings({
       llm_apis: [],
-      volcengine: { access_key: '', secret_key: '' },
+      volcengine: { access_key: '', secret_key: '', image_count: 2 },
       agent_llm_overrides: {}
     })
     await api.updateConfig({ hot_news_config: hotNewsConfig.value })

@@ -119,6 +119,7 @@ class VolcengineConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
     access_key: Optional[str] = None
     secret_key: Optional[str] = None
+    image_count: Optional[int] = 2  # AI生图张数，默认2张
 
 
 class UserSettingsResponse(BaseModel):
