@@ -48,29 +48,6 @@
             <span>{{ isGenerating ? '生成中...' : '生成可视化图表' }}</span>
           </button>
         </div>
-
-        <!-- Mock 数据测试按钮 -->
-        <div class="flex items-center justify-between bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-xl p-4">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-              <GitBranch class="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h3 class="text-sm font-bold text-slate-900">辩论时间线测试</h3>
-              <p class="text-xs text-slate-600">使用 Mock 数据测试不同轮数的时间线布局</p>
-            </div>
-          </div>
-          <div class="flex gap-2">
-            <button
-              v-for="rounds in [3, 5, 7, 8]"
-              :key="`mock-${rounds}`"
-              @click="loadMockDebateData(rounds)"
-              class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors"
-            >
-              {{ rounds }}轮
-            </button>
-          </div>
-        </div>
       </div>
 
       <!-- 隐藏的 Canvas 组件（用于生成图片） -->
@@ -632,91 +609,6 @@ const testGenerateImages = async () => {
   } finally {
     isGenerating.value = false
   }
-}
-
-// 加载 Mock 辩论数据（用于测试不同轮数）
-const loadMockDebateData = (rounds) => {
-  console.log('[DataView] 🎭 加载 Mock 数据，轮数:', rounds)
-  
-  // 基于真实数据的 mock
-  const mockData = [
-    {
-      agent_name: 'Analyst',
-      step_content: `INSIGHT: 这一事件折射出全球公共卫生语境下，公众对未知烈性传染病的深层焦虑。无疫苗、高致死率的属性叠加跨境流动的风险，各国的监测举措既凸显防控必要性，也放大了信息传播中不确定性引发的恐慌，同时映射出大众对公共卫生体系应对能力的高度期待。
-TITLE: 尼帕病毒警戒升级
-SUB: 高致死病毒 筑牢防控防线
-SUMMARY: 这一事件折射出AI技术迭代引发的产业资源重构对大众消费市场的冲击`
-    },
-    {
-      agent_name: 'Analyst',
-      step_content: `INSIGHT: 这一举措是公共卫生部门针对尼帕病毒高致死、无特效疗法的特性，结合境外疫情报告与输入风险做出的前置科学部署，既体现了防控的专业性与主动性，也需引导社交媒体信息传播回归事实边界，避免无依据的风险放大，平衡防控预警与公众理性认知的关系。
-TITLE: 尼帕病毒纳入监测
-SUB: 前置防控应对输入风险
-SUMMARY: 存储硬件集体涨价及厂商高利润率的争议，折射出AI需求迭代、行业周期波动`
-    },
-    {
-      agent_name: 'Analyst',
-      step_content: `INSIGHT: 这一争议折射出公共卫生领域中，公众对防控响应节奏、信息透明度的深度关切。本土病例出现后才将病毒纳入监测目录的被动举措，触发了对公共卫生监测体系滞后性的质疑，也凸显出公众对本土传播风险、疫情细节知情权的核心诉求，信息不对称易加剧信任裂痕。
-TITLE: 监测定性引争议
-SUB: 本土风险与知情权诉求
-SUMMARY: 此次存储硬件价格暴涨，既叠加了AI产能转导致的消费级内存供销错配`
-    },
-    {
-      agent_name: 'Analyst',
-      step_content: `INSIGHT: 这一事件折射出全球公共卫生领域对高致死未知病毒的高度警惕，社交媒体的即时传播放大了公众对无疫苗、无特效药病毒的恐慌情绪，各国主动将其纳入监测、强化入境防控的举措，既体现了前置化的风险应对思路，也反映出跨境防疫协作的迫切性。
-TITLE: 尼帕病毒防控升级
-SUB: 多国筑牢防疫预警屏障
-SUMMARY: 此次存储硬件价格暴涨，是AI技术迭代挤压消费级产能、行业周期性调整`
-    },
-    {
-      agent_name: 'Analyst',
-      step_content: `INSIGHT: 供应链紧张导致价格持续上涨，消费者面临更高成本压力，市场集中度过高引发垄断担忧。
-TITLE: 供应链危机加剧
-SUB: 价格上涨压力增大
-SUMMARY: 供应链紧张导致价格持续上涨，消费者面临更高成本压力`
-    },
-    {
-      agent_name: 'Analyst',
-      step_content: `INSIGHT: 市场集中度过高引发垄断担忧，监管部门开始关注，消费者权益保护成为焦点。
-TITLE: 市场垄断质疑
-SUB: 监管关注度提升
-SUMMARY: 市场集中度过高引发垄断担忧，监管部门开始关注`
-    },
-    {
-      agent_name: 'Analyst',
-      step_content: `INSIGHT: 消费者权益保护成为焦点，呼吁加强市场监管，行业自律与政府监管双管齐下。
-TITLE: 消费者权益受损
-SUB: 呼吁加强监管
-SUMMARY: 消费者权益保护成为焦点，呼吁加强市场监管`
-    },
-    {
-      agent_name: 'Analyst',
-      step_content: `INSIGHT: 行业自律与政府监管双管齐下，维护市场秩序，保护消费者合法权益。
-TITLE: 行业监管呼声
-SUB: 双管齐下维护秩序
-SUMMARY: 行业自律与政府监管双管齐下，维护市场秩序`
-    }
-  ]
-  
-  // 只取指定轮数
-  const selectedData = mockData.slice(0, rounds)
-  
-  // 临时覆盖 store 中的日志数据
-  analysisStore.logs = selectedData
-  
-  // 设置选中的平台（用于雷达图）
-  analysisStore.selectedPlatforms = ['wb', 'bili', 'xhs', 'dy', 'ks', 'zhihu']
-  
-  // 解锁数据
-  analysisStore.dataUnlocked = true
-  
-  console.log('[DataView] ✅ Mock 数据已加载:', {
-    rounds: selectedData.length,
-    platforms: analysisStore.selectedPlatforms,
-    radarData: radarChartData.value,
-    timelineData: debateTimelineData.value,
-    trendData: trendChartData.value
-  })
 }
 
 // 暴露给父组件使用
