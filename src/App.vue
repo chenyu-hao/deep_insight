@@ -56,7 +56,7 @@
       <HomeView v-if="currentTab === 'home'" />
 
       <!-- Data View: 数据洞察 -->
-      <DataView v-if="currentTab === 'data'" />
+      <DataView v-if="currentTab === 'data'" ref="dataViewRef" data-view="data" />
 
       <!-- Arch View: 系统架构 -->
       <ArchView v-if="currentTab === 'arch'" />
@@ -83,6 +83,7 @@ import SettingsView from './views/SettingsView.vue'
 import { useConfigStore } from './stores/config'
 
 const currentTab = ref('home')
+const dataViewRef = ref(null)
 const configStore = useConfigStore()
 
 

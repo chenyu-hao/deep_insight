@@ -1335,6 +1335,19 @@ const publishToXhs = async () => {
   const originalIndex = currentDisplayIndex.value
   
   try {
+    // 生成数据视图卡片（如果数据已解锁）
+    let dataViewImages = []
+    if (analysisStore.dataUnlocked) {
+      try {
+        // 通过事件总线或直接访问 store 中的方法
+        // 由于跨组件访问复杂，我们先生成并保存到 store
+        console.log('[Publish] 数据视图卡片功能已集成，将在后续版本中启用')
+        // TODO: 实现跨组件调用 DataView 的 generateDataViewImages 方法
+      } catch (e) {
+        console.error('[Publish] ⚠️ 数据视图卡片生成失败:', e)
+      }
+    }
+    
     // 按照用户编辑的顺序构建最终图片列表
     const allImagesToPublish = []
     
@@ -1352,13 +1365,18 @@ const publishToXhs = async () => {
           console.log('[Publish] ✅ 标题卡已生成并插入到位置', allImagesToPublish.length - 1)
         } catch (e) {
           console.error('[Publish] ❌ 标题卡生成失败:', e)
-          // 如果生成失败，跳过标题卡
         }
       } else {
         // 添加 AI 图片
         allImagesToPublish.push(allImages[idx])
         console.log('[Publish] ✅ AI图片已添加到位置', allImagesToPublish.length - 1, '原始索引:', idx)
       }
+    }
+    
+    // 添加数据视图卡片到末尾
+    if (dataViewImages.length > 0) {
+      allImagesToPublish.push(...dataViewImages)
+      console.log('[Publish] ✅ 数据视图卡片已添加到末尾')
     }
     
     if (allImagesToPublish.length === 0) {

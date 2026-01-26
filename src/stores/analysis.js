@@ -50,6 +50,7 @@ export const useAnalysisStore = defineStore("analysis", {
             contrastData: cachedResults?.contrastData || null, // 舆论对比数据
             dataUnlocked: cachedResults?.dataUnlocked || false, // 数据是否解锁
             imageUrls: cachedResults?.imageUrls || [], // 生成的配图 URL
+            dataViewImages: cachedResults?.dataViewImages || [], // 新增：数据视图卡片图片
             titleEmoji: cachedResults?.titleEmoji || "🤔", // Title Card emoji (default)
             titleTheme: cachedResults?.titleTheme || "cool", // Title Card color theme: warm/cool/alert/dark
             
@@ -153,20 +154,23 @@ export const useAnalysisStore = defineStore("analysis", {
                 .filter(log => log.agent_name === 'Analyst')
                 .map((log, index) => {
                     const content = log.step_content || '';
-                    const titleMatch = content.match(/TITLE:\s*(.+?)(?=\s*(?:SUB:|INSIGHT:|$))/is);
-                    const insightMatch = content.match(/INSIGHT:\s*(.+?)(?=\s*(?:TITLE:|$))/is);
+                    const titleMatch = content.match(/TITLE:\s*(.+?)(?=\s*(?:SUB:|INSIGHT:|SUMMARY:|$))/is);
+                    const summaryMatch = content.match(/SUMMARY:\s*(.+?)(?=\s*(?:TITLE:|INSIGHT:|SUB:|$))/is);
+                    const insightMatch = content.match(/INSIGHT:\s*(.+?)(?=\s*(?:TITLE:|SUMMARY:|$))/is);
                     
                     const fullInsight = insightMatch ? insightMatch[1].trim() : '';
                     
-                    // 生成一句话总结（用于卡片展示）
-                    // 提取第一句话，或者截取前40字
+                    // 优先使用 SUMMARY 字段（LLM 生成的精炼观点）
                     let summary = '';
-                    if (fullInsight) {
+                    if (summaryMatch) {
+                        summary = summaryMatch[1].trim();
+                    } else if (fullInsight) {
+                        // 降级：提取第一句话
                         const firstSentence = fullInsight.match(/^[^。！？.!?]+[。！？.!?]/);
                         if (firstSentence) {
                             summary = firstSentence[0];
                         } else {
-                            summary = fullInsight.substring(0, 40) + (fullInsight.length > 40 ? '...' : '');
+                            summary = fullInsight.substring(0, 40);
                         }
                     }
                     
@@ -174,7 +178,7 @@ export const useAnalysisStore = defineStore("analysis", {
                         round: index + 1,
                         title: titleMatch ? titleMatch[1].trim() : '推理中...',
                         insight: fullInsight,
-                        summary: summary, // 一句话总结，用于卡片
+                        summary: summary, // LLM 生成的精炼观点，用于卡片
                         insightPreview: fullInsight.substring(0, 80) + (fullInsight.length > 80 ? '...' : '') // 80字预览
                     };
                 });
@@ -235,6 +239,7 @@ export const useAnalysisStore = defineStore("analysis", {
                 contrastData: this.contrastData,
                 dataUnlocked: this.dataUnlocked,
                 imageUrls: this.imageUrls,
+                dataViewImages: this.dataViewImages,
                 titleEmoji: this.titleEmoji,
                 titleTheme: this.titleTheme,
                 selectedImageIndices: this.editableContent.selectedImageIndices,
@@ -245,6 +250,13 @@ export const useAnalysisStore = defineStore("analysis", {
             } catch (e) {
                 console.error("Failed to save analysis results to sessionStorage:", e);
             }
+        },
+
+        // 设置数据视图图片
+        setDataViewImages(images) {
+            this.dataViewImages = images;
+            this.saveResultsToSession();
+            console.log('[AnalysisStore] 数据视图图片已保存:', images.length, '张');
         },
 
         // 编辑相关 actions

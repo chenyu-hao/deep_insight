@@ -26,6 +26,72 @@
         </div>
       </div>
 
+      <!-- 测试按钮（仅在数据已解锁时显示） -->
+      <div v-if="dataUnlocked" class="mb-6 space-y-4">
+        <!-- 生成图表按钮 -->
+        <div class="flex items-center justify-between bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+              <Download class="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">数据可视化生成</h3>
+              <p class="text-xs text-slate-600">生成三张数据可视化图表用于小红书发布</p>
+            </div>
+          </div>
+          <button
+            @click="testGenerateImages"
+            :disabled="isGenerating"
+            class="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+          >
+            <Loader2 v-if="isGenerating" class="w-4 h-4 animate-spin" />
+            <span>{{ isGenerating ? '生成中...' : '生成可视化图表' }}</span>
+          </button>
+        </div>
+
+        <!-- Mock 数据测试按钮 -->
+        <div class="flex items-center justify-between bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-xl p-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+              <GitBranch class="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">辩论时间线测试</h3>
+              <p class="text-xs text-slate-600">使用 Mock 数据测试不同轮数的时间线布局</p>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button
+              v-for="rounds in [3, 5, 7, 8]"
+              :key="`mock-${rounds}`"
+              @click="loadMockDebateData(rounds)"
+              class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors"
+            >
+              {{ rounds }}轮
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 隐藏的 Canvas 组件（用于生成图片） -->
+      <div class="hidden">
+        <RadarChartCanvas 
+          ref="radarChartCanvasRef" 
+          :data="radarChartData" 
+          :show-preview="false" 
+        />
+        <DebateTimelineCanvas 
+          ref="debateTimelineCanvasRef" 
+          :timeline="debateTimelineData" 
+          :show-preview="false" 
+        />
+        <TrendChartCanvas 
+          ref="trendChartCanvasRef" 
+          :data="trendChartData" 
+          :show-preview="false" 
+        />
+      </div>
+
       <!-- 双卡布局 -->
       <div v-if="dataUnlocked" class="grid lg:grid-cols-2 gap-6">
         <!-- 左侧列 -->
@@ -386,6 +452,9 @@ import InsightCard from '../components/InsightCard.vue'
 import RadarChart from '../components/RadarChart.vue'
 import DebateTimeline from '../components/DebateTimeline.vue'
 import TrendChart from '../components/TrendChart.vue'
+import RadarChartCanvas from '../components/canvas/RadarChartCanvas.vue'
+import DebateTimelineCanvas from '../components/canvas/DebateTimelineCanvas.vue'
+import TrendChartCanvas from '../components/canvas/TrendChartCanvas.vue'
 
 Chart.register(...registerables)
 
@@ -404,6 +473,14 @@ const emit = defineEmits(['switch-tab'])
 
 const analysisStore = useAnalysisStore()
 const dataUnlocked = computed(() => analysisStore.dataUnlocked)
+
+// Canvas 组件引用
+const radarChartCanvasRef = ref(null)
+const debateTimelineCanvasRef = ref(null)
+const trendChartCanvasRef = ref(null)
+
+// 生成状态
+const isGenerating = ref(false)
 
 // 新增：从 store 获取洞察卡和雷达图数据
 const insightCardData = computed(() => analysisStore.insightCardData)
@@ -470,6 +547,116 @@ const vizOptions = [
   { type: 'timeline', label: '辩论演化', icon: GitBranch },
   { type: 'trend', label: '热度趋势', icon: TrendingUp }
 ]
+
+// 生成数据视图卡片图片（右侧三个可视化图表）
+const generateDataViewImages = async () => {
+  const images = []
+  
+  try {
+    // 生成雷达图
+    if (radarChartCanvasRef.value && radarChartData.value.labels.length > 0) {
+      const img = await radarChartCanvasRef.value.generateImage()
+      images.push(img)
+    }
+    
+    // 生成辩论时间线
+    if (debateTimelineCanvasRef.value && debateTimelineData.value.length > 0) {
+      const img = await debateTimelineCanvasRef.value.generateImage()
+      images.push(img)
+    }
+    
+    // 生成趋势图
+    if (trendChartCanvasRef.value && trendChartData.value.curve.length > 0) {
+      const img = await trendChartCanvasRef.value.generateImage()
+      images.push(img)
+    }
+  } catch (error) {
+    console.error('生成数据视图图片失败:', error)
+  }
+  
+  return images
+}
+
+// 测试生成图片
+const testGenerateImages = async () => {
+  if (isGenerating.value) return
+  
+  isGenerating.value = true
+  
+  try {
+    console.log('开始生成数据可视化图片...')
+    const images = await generateDataViewImages()
+    
+    console.log(`成功生成 ${images.length} 张图片`)
+    
+    // 保存到 store
+    analysisStore.setDataViewImages(images)
+    
+    // 下载预览
+    const names = ['平台覆盖雷达图', '辩论演化时间线', '热度趋势分析']
+    images.forEach((img, index) => {
+      const link = document.createElement('a')
+      link.download = `${names[index]}.png`
+      link.href = img
+      link.click()
+    })
+    
+    alert(`成功生成 ${images.length} 张数据可视化图片！已自动下载预览。`)
+  } catch (error) {
+    console.error('测试生成失败:', error)
+    alert('生成失败，请查看控制台错误信息')
+  } finally {
+    isGenerating.value = false
+  }
+}
+
+// 加载 Mock 辩论数据（用于测试不同轮数）
+const loadMockDebateData = (rounds) => {
+  const mockTitles = [
+    '内存涨幅超黄金',
+    '存储全线飙价',
+    '内存暴涨高利疑云',
+    '内存疯涨超黄金',
+    '供应链危机加剧',
+    '市场垄断质疑',
+    '消费者权益受损',
+    '行业监管呼声'
+  ]
+  
+  const mockSummaries = [
+    '这一事件折射出AI技术迭代引发的产业资源重构对大众消费市场的冲击',
+    '存储硬件集体涨价及厂商高利润率的争议，折射出AI需求迭代、行业周期波动',
+    '此次存储硬件价格暴涨，既叠加了AI产能转导致的消费级内存供销错配',
+    '此次存储硬件价格暴涨，是AI技术迭代挤压消费级产能、行业周期性调整',
+    '供应链紧张导致价格持续上涨，消费者面临更高成本压力',
+    '市场集中度过高引发垄断担忧，监管部门开始关注',
+    '消费者权益保护成为焦点，呼吁加强市场监管',
+    '行业自律与政府监管双管齐下，维护市场秩序'
+  ]
+  
+  const mockData = []
+  for (let i = 0; i < rounds; i++) {
+    mockData.push({
+      round: i + 1,
+      title: mockTitles[i] || `第${i + 1}轮观点`,
+      insight: `这是第${i + 1}轮辩论的详细内容，包含了对议题的深入分析和观点阐述。`,
+      summary: mockSummaries[i] || `第${i + 1}轮核心观点总结`
+    })
+  }
+  
+  // 临时覆盖 store 中的辩论数据
+  analysisStore.result = {
+    ...analysisStore.result,
+    debate_rounds: mockData
+  }
+  
+  console.log(`已加载 ${rounds} 轮 Mock 数据`)
+}
+
+// 暴露给父组件使用
+defineExpose({
+  generateDataViewImages
+})
 
 // 数据源：'workflow' 或 'hotnews'
 const dataSource = ref('workflow')
