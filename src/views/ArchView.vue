@@ -21,7 +21,7 @@
       </div>
 
       <!-- 数据流架构图 -->
-      <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 relative overflow-hidden">
+      <div class="arch-pipeline-section rounded-2xl shadow-2xl p-8 md:p-12 mb-8 relative overflow-hidden">
         <!-- 背景动画网格 -->
         <div class="absolute inset-0 opacity-10">
           <div class="grid-bg"></div>
@@ -34,8 +34,8 @@
           <div class="particle particle-3"></div>
         </div>
 
-        <h3 class="text-xl font-bold text-white mb-8 flex items-center gap-2 relative z-10">
-          <Workflow class="w-6 h-6 text-blue-400" />
+        <h3 class="text-xl font-bold arch-pipeline-title mb-8 flex items-center gap-2 relative z-10">
+          <Workflow class="w-6 h-6 text-blue-500" />
           数据处理流水线
         </h3>
 
@@ -97,14 +97,14 @@
 
         <!-- 底部技术标签 -->
         <div class="mt-8 flex flex-wrap justify-center gap-2 relative z-10">
-          <span class="tech-tag">FastAPI</span>
-          <span class="tech-tag">LangChain</span>
-          <span class="tech-tag">LangGraph</span>
-          <span class="tech-tag">Vue 3</span>
-          <span class="tech-tag">Pinia</span>
-          <span class="tech-tag">Canvas API</span>
-          <span class="tech-tag">SSE</span>
-          <span class="tech-tag">火山引擎</span>
+          <span class="tech-tag-adaptive">FastAPI</span>
+          <span class="tech-tag-adaptive">LangChain</span>
+          <span class="tech-tag-adaptive">LangGraph</span>
+          <span class="tech-tag-adaptive">Vue 3</span>
+          <span class="tech-tag-adaptive">Pinia</span>
+          <span class="tech-tag-adaptive">Canvas API</span>
+          <span class="tech-tag-adaptive">SSE</span>
+          <span class="tech-tag-adaptive">火山引擎</span>
         </div>
       </div>
 
@@ -310,6 +310,34 @@ import AgentNetwork3D from '@/components/AgentNetwork3D.vue'
   background: rgba(255, 255, 255, 0.2);
   color: white;
 }
+
+/* 自适应技术标签 - Light/Dark 模式 */
+.tech-tag-adaptive {
+  padding: 0.25rem 0.75rem;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  color: #3b82f6;
+  transition: all 0.2s ease;
+}
+
+.tech-tag-adaptive:hover {
+  background: rgba(59, 130, 246, 0.2);
+  color: #2563eb;
+}
+
+/* 数据流水线区域 - 自适应主题 (Light Mode) */
+.arch-pipeline-section {
+  background: linear-gradient(to bottom right, #f8fafc, #f1f5f9, #e2e8f0);
+  border: 1px solid #e2e8f0;
+}
+
+.arch-pipeline-title {
+  color: #1e293b;
+}
+
+/* Dark mode styles are in src/style.css for proper global scoping */
 
 /* LLM 徽章 */
 .llm-badge {

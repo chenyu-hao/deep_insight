@@ -6,19 +6,19 @@
     
     <div class="relative z-10">
       <!-- Hero 区域 -->
-      <section class="hero-section min-h-screen flex flex-col items-center justify-center px-4 py-20 relative">
-        <div class="text-center max-w-4xl mx-auto">
-          <div ref="badgeRef" class="inline-flex items-center gap-2 px-4 py-2 backdrop-blur-sm rounded-full mb-6 opacity-0"
+      <section class="hero-section min-h-screen flex flex-col items-center px-4 pt-16 pb-8 relative">
+        <div class="text-center max-w-4xl mx-auto mt-4">
+          <div ref="badgeRef" class="inline-flex items-center gap-2 px-4 py-2 backdrop-blur-sm rounded-full mb-4 opacity-0"
                :class="isDarkMode ? 'bg-white/10 border border-white/20' : 'bg-white/80 border border-slate-200 shadow-lg'">
             <Sparkles class="w-4 h-4" :class="isDarkMode ? 'text-blue-400' : 'text-blue-500'" />
             <span class="text-sm font-medium" :class="isDarkMode ? 'text-blue-300' : 'text-blue-600'">AI 舆情洞察 · 智能内容生成</span>
           </div>
           
-          <h1 ref="titleRef" class="text-5xl md:text-7xl font-black mb-6 opacity-0" :class="isDarkMode ? 'text-white' : 'text-slate-900'">
+          <h1 ref="titleRef" class="text-5xl md:text-7xl font-black mb-4 opacity-0" :class="isDarkMode ? 'text-white' : 'text-slate-900'">
             观潮 <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">GlobalInSight</span>
           </h1>
           
-          <p ref="subtitleRef" class="text-xl md:text-2xl mb-12 opacity-0" :class="isDarkMode ? 'text-slate-300' : 'text-slate-600'">
+          <p ref="subtitleRef" class="text-xl md:text-2xl mb-8 opacity-0" :class="isDarkMode ? 'text-slate-300' : 'text-slate-600'">
             基于 Multi-Agent Debate 框架的新一代舆情分析系统<br/>
             让 AI 像专业分析师一样思考、辩论、创作
           </p>
@@ -44,10 +44,10 @@
           </div>
         </div>
         
-        <!-- 滚动提示 - 放在 flex 容器底部 -->
-        <div ref="scrollHintRef" class="mt-auto pt-8 opacity-0">
+        <!-- 滚动提示 - 固定在视口底部偏上位置 -->
+        <div ref="scrollHintRef" class="absolute bottom-24 left-1/2 -translate-x-1/2 opacity-0">
           <div class="flex flex-col items-center" :class="isDarkMode ? 'text-slate-400' : 'text-slate-500'">
-            <span class="text-sm mb-2">向下滚动探索</span>
+            <span class="text-md mb-3">向下滚动探索</span>
             <ChevronDown class="w-6 h-6 animate-bounce" />
           </div>
         </div>

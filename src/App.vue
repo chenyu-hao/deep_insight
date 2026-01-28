@@ -148,9 +148,18 @@ const handleApiUpdated = () => {
   // API更新后的处理
 }
 
-// 初始化深色模式
+// 初始化深色模式和首次访问逻辑
 onMounted(() => {
   configStore.initDarkMode()
+  
+  // 首次访问显示愿景与价值页面，之后显示舆情推演页面
+  const hasVisited = localStorage.getItem('globalinsight_has_visited')
+  if (!hasVisited) {
+    currentTab.value = 'vision'
+    localStorage.setItem('globalinsight_has_visited', 'true')
+  } else {
+    currentTab.value = 'home'
+  }
 })
 </script>
 

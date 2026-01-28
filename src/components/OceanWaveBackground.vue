@@ -13,18 +13,18 @@ let count = 0
 
 // 配置参数
 const SEPARATION = 50  // 粒子间距
-const AMOUNTX = 60     // X 轴粒子数量
+const AMOUNTX = 100    // X 轴粒子数量 - 增加宽度
 const AMOUNTY = 30     // Y 轴粒子数量
 
 // 初始化场景
 function initScene() {
   scene = new THREE.Scene()
   
-  // 相机设置 - 俯视角度看海浪
+  // 相机设置 - 俯视角度看海浪，调整让海浪更靠下
   camera = new THREE.PerspectiveCamera(120, window.innerWidth / window.innerHeight, 1, 10000)
-  camera.position.y = 180  // 高度
-  camera.position.z = 20   // 距离
-  camera.rotation.x = 0.35 // 俯视角度
+  camera.position.y = 280  // 提高相机高度，让海浪看起来更靠下
+  camera.position.z = -50  // 向后移动相机
+  camera.rotation.x = 0.5  // 增加俯视角度
   
   // 渲染器
   renderer = new THREE.WebGLRenderer({ 

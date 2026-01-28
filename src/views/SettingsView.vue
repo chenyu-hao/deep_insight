@@ -279,7 +279,7 @@
               <option :value="9">9 张</option>
             </select>
             <p class="text-[10px] text-slate-400 mt-1">
-              每次工作流生成的图片数量（1-9张）。生成更多图片会增加耗时和费用。选择后自动保存。
+              每次工作流生成的图片数量（0-9张）。生成更多图片会增加耗时和费用。选择后自动保存。
             </p>
           </div>
 
@@ -356,10 +356,11 @@
     </div>
 
     <!-- Modal for API Editing -->
-    <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4"
-      @click.self="closeEditModal">
-      <div class="absolute inset-0 modal-overlay" @click="closeEditModal"></div>
-      <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in z-10">
+    <Teleport to="body">
+      <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        @click.self="closeEditModal">
+        <div class="absolute inset-0 modal-overlay" @click="closeEditModal"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in z-10">
         <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h3 class="font-bold text-slate-800 flex items-center gap-2">
             <Settings2 class="w-4 h-4" /> {{ editingApiId ? '编辑模型配置' : '配置新模型' }}
@@ -418,6 +419,7 @@
         </div>
       </div>
     </div>
+    </Teleport>
   </div>
 </template>
 

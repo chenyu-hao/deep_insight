@@ -46,16 +46,21 @@
     </transition>
     
     <!-- 操作提示 -->
-    <div class="absolute bottom-4 left-4 text-xs text-slate-500 flex items-center gap-2">
-      <span class="px-2 py-1 bg-slate-800/50 rounded">🖱️ 拖拽旋转</span>
-      <span class="px-2 py-1 bg-slate-800/50 rounded">悬停查看详情</span>
+    <div class="absolute bottom-4 left-4 text-xs flex items-center gap-2"
+         :class="isDarkMode ? 'text-slate-500' : 'text-slate-600'">
+      <span class="px-2 py-1 rounded" :class="isDarkMode ? 'bg-slate-800/50' : 'bg-slate-200/80'">🖱️ 拖拽旋转</span>
+      <span class="px-2 py-1 rounded" :class="isDarkMode ? 'bg-slate-800/50' : 'bg-slate-200/80'">悬停查看详情</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import * as THREE from 'three'
+import { useConfigStore } from '@/stores/config'
+
+const configStore = useConfigStore()
+const isDarkMode = computed(() => configStore.isDarkMode)
 
 const containerRef = ref(null)
 const canvasRef = ref(null)
@@ -158,6 +163,11 @@ onMounted(() => {
   canvasRef.value.addEventListener('mouseleave', onMouseUp)
 })
 
+// 监听主题变化
+watch(isDarkMode, () => {
+  updateSceneBackground()
+})
+
 onUnmounted(() => {
   cancelAnimationFrame(animationId)
   window.removeEventListener('resize', onResize)
@@ -175,7 +185,7 @@ function initScene() {
   const canvas = canvasRef.value
   
   scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x0f172a)
+  scene.background = new THREE.Color(isDarkMode.value ? 0x0f172a : 0xf1f5f9)
   
   camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000)
   camera.position.set(0, 0, 10)
@@ -445,6 +455,12 @@ function onResize() {
   camera.aspect = container.clientWidth / container.clientHeight
   camera.updateProjectionMatrix()
   renderer.setSize(container.clientWidth, container.clientHeight)
+}
+
+function updateSceneBackground() {
+  if (scene) {
+    scene.background = new THREE.Color(isDarkMode.value ? 0x0f172a : 0xf1f5f9)
+  }
 }
 
 function onMouseDown(event) {
