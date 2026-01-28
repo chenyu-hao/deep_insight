@@ -122,10 +122,11 @@ class ImageGeneratorService:
                 cleaned.append(ln)
         return cleaned
 
-    async def generate_image_prompts(self, content: str, insight: str = "") -> List[str]:
+    async def generate_image_prompts(self, content: str, insight: str = "", image_count: Optional[int] = None) -> List[str]:
         """Generate multiple single-image prompts based on the content using LLM."""
-        # 获取用户配置的生图张数
-        image_count = get_image_generation_count()
+        # 优先使用传入的 image_count，否则从用户配置获取
+        if image_count is None:
+            image_count = get_image_generation_count()
         
         # 如果配置为 0 张，直接返回空列表
         if image_count == 0:
@@ -242,10 +243,11 @@ class ImageGeneratorService:
             return None
         return urls[0]
 
-    async def generate_images(self, content: str, insight: str = "") -> List[str]:
+    async def generate_images(self, content: str, insight: str = "", image_count: Optional[int] = None) -> List[str]:
         """Full workflow: generate N prompts -> submit N tasks -> aggregate results."""
-        # 获取用户配置的生图张数
-        image_count = get_image_generation_count()
+        # 优先使用传入的 image_count，否则从用户配置获取
+        if image_count is None:
+            image_count = get_image_generation_count()
         
         # 如果配置为 0 张，直接跳过生图
         if image_count == 0:
@@ -261,7 +263,7 @@ class ImageGeneratorService:
             return []
         
         print(f"[IMAGE] Generating prompts (Target: {image_count})...")
-        prompts = await self.generate_image_prompts(content, insight=insight)
+        prompts = await self.generate_image_prompts(content, insight=insight, image_count=image_count)
         if not prompts:
             print("[IMAGE] No prompts generated.")
             return []

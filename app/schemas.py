@@ -7,6 +7,7 @@ class NewsRequest(BaseModel):
     topic: str
     platforms: Optional[List[str]] = None  # Optional: specify platforms to crawl
     debate_rounds: Optional[int] = 2  # Optional: debate rounds (1-5), default 2
+    image_count: Optional[int] = 2  # Optional: AI image count (0-9), default 2
 
 class AgentState(BaseModel):
     agent_name: str
@@ -16,6 +17,7 @@ class AgentState(BaseModel):
     image_urls: Optional[List[str]] = None  # Optional: generated image URLs
     dataview_images: Optional[List[str]] = None  # Optional: DataView card image URLs
     platform_stats: Optional[Dict[str, int]] = None  # Optional: platform data counts {platform_code: count}
+    final_copy: Optional[str] = None  # Optional: Writer 完整输出（包含 TITLE/CONTENT/EMOJI/THEME）
 
 class CrawlerDataItem(BaseModel):
     """Standardized crawler data item"""

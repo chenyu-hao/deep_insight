@@ -180,6 +180,7 @@ class GraphState(TypedDict):
     topic: str
     platforms: List[str]  # Platforms to crawl
     debate_rounds: int  # Number of debate rounds (1-5)
+    image_count: int  # Number of AI images to generate (0-9)
     crawler_data: List[Dict[str, Any]]  # Standardized crawled data
     platform_data: Dict[str, List[Dict[str, Any]]]  # Data grouped by platform
     news_content: str
@@ -663,6 +664,7 @@ async def image_generator_node(state: GraphState):
     final_copy = state["final_copy"]
     output_file = state.get("output_file")
     initial_analysis = state.get("initial_analysis", "") # This contains the insight + analysis
+    image_count = state.get("image_count", 2)  # 从 state 获取 image_count，默认 2
     
     # Update status
     from app.services.workflow_status import workflow_status
@@ -671,7 +673,7 @@ async def image_generator_node(state: GraphState):
     # Extract insight if possible (it's embedded in the analysis string "INSIGHT: ...")
     # But passing the whole analysis is also fine, the prompt generator can handle it.
     # To be precise, let's pass the whole thing as 'insight' context.
-    image_urls = await image_generator_service.generate_images(final_copy, insight=initial_analysis)
+    image_urls = await image_generator_service.generate_images(final_copy, insight=initial_analysis, image_count=image_count)
     
     if output_file and os.path.exists(output_file) and image_urls:
         with open(output_file, "a", encoding="utf-8") as f:

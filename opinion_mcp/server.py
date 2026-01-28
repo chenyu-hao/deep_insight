@@ -49,6 +49,7 @@ from opinion_mcp.tools import (
     get_settings,
     register_webhook,
 )
+from opinion_mcp.tools.validate_publish import validate_publish
 
 
 # ============================================================
@@ -285,6 +286,20 @@ MCP_TOOLS: List[MCPTool] = [
             required=["callback_url", "job_id"]
         )
     ),
+    MCPTool(
+        name="validate_publish",
+        description="验证发布条件是否满足。检查 XHS-MCP 服务状态、任务完成状态、图片 URL 有效性，返回详细验证结果和修复建议。",
+        inputSchema=MCPToolInput(
+            type="object",
+            properties={
+                "job_id": {
+                    "type": "string",
+                    "description": "任务 ID，留空则使用最近完成的任务"
+                }
+            },
+            required=[]
+        )
+    ),
 ]
 
 # 工具名称到函数的映射
@@ -297,6 +312,7 @@ TOOL_HANDLERS = {
     "publish_to_xhs": publish_to_xhs,
     "get_settings": get_settings,
     "register_webhook": register_webhook,
+    "validate_publish": validate_publish,
 }
 
 
@@ -838,6 +854,29 @@ async def direct_update_copywriting(body: UpdateCopywritingRequest) -> Dict[str,
         content=body.content,
         tags=body.tags,
     )
+
+
+class ValidatePublishRequest(BaseModel):
+    """发布验证请求体"""
+    job_id: Optional[str] = None
+
+
+@app.post("/validate_publish")
+async def direct_validate_publish(body: ValidatePublishRequest) -> Dict[str, Any]:
+    """直接验证发布条件"""
+    return await validate_publish(job_id=body.job_id)
+
+
+@app.get("/validate_publish")
+async def direct_validate_publish_get(job_id: Optional[str] = None) -> Dict[str, Any]:
+    """直接验证发布条件（GET 请求）"""
+    return await validate_publish(job_id=job_id)
+
+
+@app.get("/validate_publish/{job_id}")
+async def direct_validate_publish_path(job_id: str) -> Dict[str, Any]:
+    """直接验证发布条件（路径参数）"""
+    return await validate_publish(job_id=job_id)
 
 
 # 原有的 /api/ 前缀端点

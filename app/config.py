@@ -282,6 +282,20 @@ class Config:
         "auto_publish": False,  # 工作流完成后是否自动发布
     }
 
+    # --- 图片发布配置 (MCP Image Publishing Pipeline) ---
+    # image_publish_mode: 
+    #   - "ai_only": 阶段 F，仅使用 AI 生成的配图
+    #   - "ai_and_cards": 阶段 B，同时使用数据卡片和 AI 配图
+    IMAGE_PUBLISH_CONFIG = {
+        "image_publish_mode": os.getenv("IMAGE_PUBLISH_MODE", "ai_only"),
+        "render_service_url": os.getenv("RENDER_SERVICE_URL", "http://localhost:8000/render"),
+        "render_timeout": int(os.getenv("RENDER_TIMEOUT", "30")),
+        "browser_pool_min": int(os.getenv("BROWSER_POOL_MIN", "2")),
+        "browser_pool_max": int(os.getenv("BROWSER_POOL_MAX", "4")),
+        "frontend_url": os.getenv("FRONTEND_URL", "http://localhost:5173"),
+        "render_route": "/render-cards",
+    }
+
     # --- Model Management Methods ---
     @classmethod
     def get_all_models(cls):
@@ -307,5 +321,31 @@ class Config:
             return False
         models = cls.get_models_for_provider(provider_key)
         return any(m["id"] == model_id for m in models)
+
+    # --- Image Publish Config Methods ---
+    @classmethod
+    def get_image_publish_mode(cls):
+        """获取当前图片发布模式（支持热加载）"""
+        # 每次调用时重新读取环境变量，支持运行时配置变更
+        return os.getenv("IMAGE_PUBLISH_MODE", cls.IMAGE_PUBLISH_CONFIG["image_publish_mode"])
+    
+    @classmethod
+    def set_image_publish_mode(cls, mode: str):
+        """设置图片发布模式（运行时）"""
+        if mode not in ("ai_only", "ai_and_cards"):
+            raise ValueError(f"Invalid image_publish_mode: {mode}. Must be 'ai_only' or 'ai_and_cards'")
+        cls.IMAGE_PUBLISH_CONFIG["image_publish_mode"] = mode
+        # 同时更新环境变量以支持跨进程
+        os.environ["IMAGE_PUBLISH_MODE"] = mode
+        from loguru import logger
+        logger.info(f"Image publish mode changed to: {mode}")
+    
+    @classmethod
+    def get_image_publish_config(cls):
+        """获取完整的图片发布配置"""
+        config = cls.IMAGE_PUBLISH_CONFIG.copy()
+        # 确保使用最新的模式设置
+        config["image_publish_mode"] = cls.get_image_publish_mode()
+        return config
 
 settings = Config()

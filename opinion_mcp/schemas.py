@@ -121,6 +121,8 @@ class JobInfo(BaseModel):
     debate_rounds: int = Field(default=2, description="辩论轮数")
     image_count: int = Field(default=2, description="图片数量")
     webhook_url: Optional[str] = Field(default=None, description="Webhook 回调 URL")
+    published: bool = Field(default=False, description="是否已发布")
+    published_at: Optional[datetime] = Field(default=None, description="发布时间")
     
     @property
     def elapsed_minutes(self) -> Optional[float]:

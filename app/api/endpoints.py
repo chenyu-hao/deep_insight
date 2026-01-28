@@ -217,7 +217,12 @@ async def analyze_news(request: NewsRequest):
     if debate_rounds < 1 or debate_rounds > 5:
         raise HTTPException(status_code=400, detail="debate_rounds 必须在 1-5 之间")
     
-    print(f"[IN] Received request: Topic='{request.topic}', URLs={request.urls}, Platforms={request.platforms}, DebateRounds={debate_rounds}")
+    # 验证 image_count 参数
+    image_count = request.image_count if request.image_count is not None else 2
+    if image_count < 0 or image_count > 9:
+        raise HTTPException(status_code=400, detail="image_count 必须在 0-9 之间")
+    
+    print(f"[IN] Received request: Topic='{request.topic}', URLs={request.urls}, Platforms={request.platforms}, DebateRounds={debate_rounds}, ImageCount={image_count}")
     
     # 更新工作流状态
     await workflow_status.start_workflow(request.topic)
@@ -229,6 +234,7 @@ async def analyze_news(request: NewsRequest):
             "topic": request.topic, 
             "platforms": request.platforms or [],  # 支持根据勾选框选择平台
             "debate_rounds": debate_rounds,  # 传递辩论轮数
+            "image_count": image_count,  # 传递图片数量
             "messages": [],
             "crawler_data": [],
             "platform_data": {}
@@ -269,13 +275,37 @@ async def analyze_news(request: NewsRequest):
                             platform_stats = {p: len(items) for p, items in platform_data.items()}
                             print(f"[SSE] 发送平台统计: {platform_stats}")
                     
+                    # 提取 Writer 完整输出
+                    final_copy = None
+                    if node_name == "writer":
+                        final_copy = state_update.get("final_copy")
+                        print(f"[SSE] Writer state_update keys: {list(state_update.keys())}")
+                        if final_copy:
+                            print(f"[SSE] 发送 Writer 完整输出: {len(final_copy)} 字符")
+                        else:
+                            print(f"[SSE] Writer final_copy 为空，尝试从 messages 提取")
+                            # 如果 final_copy 为空，尝试从 messages 中提取
+                            if messages and len(messages) > 0:
+                                last_msg = str(messages[-1])
+                                if "Writer:" in last_msg:
+                                    final_copy = last_msg.replace("Writer:", "").strip()
+                                    print(f"[SSE] 从 messages 提取 Writer 输出: {len(final_copy)} 字符")
+                    
+                    # 提取图片 URL
+                    image_urls = state_update.get("image_urls")
+                    if node_name == "image_generator":
+                        print(f"[SSE] Image Generator state_update keys: {list(state_update.keys())}")
+                    if image_urls:
+                        print(f"[SSE] 发送图片 URL: {len(image_urls)} 张")
+                    
                     agent_state = AgentState(
                         agent_name=display_name,
                         step_content=content,
                         status="thinking",
-                        image_urls=state_update.get("image_urls"),
+                        image_urls=image_urls,
                         dataview_images=state_update.get("dataview_images"),
-                        platform_stats=platform_stats
+                        platform_stats=platform_stats,
+                        final_copy=final_copy,  # 添加 Writer 完整输出
                     )
                     
                     # Yield SSE format

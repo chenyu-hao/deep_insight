@@ -237,7 +237,7 @@ MCP 支持 Webhook 推送，ClawdBot 可以注册回调来接收完成通知：
 **参数**:
 - `topic` (必填): 要分析的话题
 - `platforms` (可选): 平台列表，如 `["wb", "dy", "bili"]`
-- `debate_rounds` (可选): 辩论轮数 1-5，默认 2
+- `debate_rounds` (可选): 辩论轮数 1-5，默认 2，轮数越多分析越深入
 - `image_count` (可选): 生成图片数 0-9，默认 2
 
 **示例**:
@@ -245,6 +245,7 @@ MCP 支持 Webhook 推送，ClawdBot 可以注册回调来接收完成通知：
 {
   "topic": "DeepSeek R1 开源",
   "platforms": ["wb", "zhihu", "hn"],
+  "debate_rounds": 3,
   "image_count": 3
 }
 ```
@@ -315,6 +316,8 @@ MCP 支持 Webhook 推送，ClawdBot 可以注册回调来接收完成通知：
 - `title` (可选): 自定义标题
 - `tags` (可选): 自定义标签
 
+**⚠️ 重要**: 每个 job_id 只能发布一次！如果返回 `already_published: true`，说明已发布过。
+
 ### 8. register_webhook
 注册进度推送回调。
 
@@ -329,6 +332,22 @@ MCP 支持 Webhook 推送，ClawdBot 可以注册回调来接收完成通知：
 - `step_change` - 步骤变更
 - `completed` - 任务完成（包含完整结果）
 - `failed` - 任务失败
+
+## ⚠️ 关键行为规则
+
+### 必须遵守 (MUST DO)
+| 规则 | 说明 |
+|------|------|
+| **M0** | 启动分析前必须询问平台、图片数量、辩论轮次 |
+| **M1** | 启动任务后每 60 秒轮询状态 |
+| **M2** | 任务完成后展示完整文案预览 |
+| **M3** | 等待用户确认后才发布 |
+
+### 禁止行为 (MUST NOT)
+| 规则 | 说明 |
+|------|------|
+| **N5** | 🚨 发布失败时禁止重新分析（浪费 10 分钟！） |
+| **N6** | 🚨 禁止重复发布同一任务（会被风控！） |
 
 ## 典型使用流程
 
@@ -464,7 +483,11 @@ curl http://localhost:18061/get_hot_news
 
 ## 📝 更新日志
 
-### 2026-01-28
+### 2026-01-28 (最新)
+- ✅ 新增防重复发布机制 (`already_published` 检测)
+- ✅ 新增辩论轮次配置 (`debate_rounds` 参数)
+- ✅ 更新 SKILL.md 添加 Phase 0 参数询问流程
+- ✅ 添加 N5/N6 规则防止错误行为
 - ✅ 修复 mcporter SSE 兼容性（添加根路径处理器）
 - ✅ 添加路径参数支持 (`/get_analysis_status/{job_id}`)
 - ✅ 修复 Pydantic v2 弃用警告

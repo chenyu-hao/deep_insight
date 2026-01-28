@@ -40,6 +40,7 @@ class BackendClient:
         topic: str,
         platforms: Optional[List[str]] = None,
         debate_rounds: int = 2,
+        image_count: int = 2,
         urls: Optional[List[str]] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """调用后端分析 API (SSE 流式)
@@ -48,6 +49,7 @@ class BackendClient:
             topic: 要分析的话题
             platforms: 要爬取的平台列表，留空则使用默认平台
             debate_rounds: 辩论轮数 (1-5)
+            image_count: AI 配图数量 (0-9)，默认 2 张
             urls: 额外的 URL 列表
             
         Yields:
@@ -60,10 +62,11 @@ class BackendClient:
             "topic": topic,
             "platforms": platforms or [],
             "debate_rounds": debate_rounds,
+            "image_count": image_count,
             "urls": urls or []
         }
         
-        logger.info(f"[BackendClient] 调用分析 API: topic={topic}, platforms={platforms}, debate_rounds={debate_rounds}")
+        logger.info(f"[BackendClient] 调用分析 API: topic={topic}, platforms={platforms}, debate_rounds={debate_rounds}, image_count={image_count}")
         
         try:
             # 使用无超时的客户端，因为分析可能需要很长时间

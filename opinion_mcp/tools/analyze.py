@@ -149,7 +149,7 @@ async def analyze_topic(
     job_manager.update_status(job_id, status=JobStatus.RUNNING)
     
     # 启动后台任务
-    asyncio.create_task(_run_analysis_task(job_id, topic, platforms, debate_rounds))
+    asyncio.create_task(_run_analysis_task(job_id, topic, platforms, debate_rounds, image_count))
     
     # 计算预估时间 (基于平台数量和辩论轮数)
     estimated_time = 5 + len(platforms) * 1.5 + debate_rounds * 2
@@ -405,6 +405,7 @@ async def _run_analysis_task(
     topic: str,
     platforms: List[str],
     debate_rounds: int,
+    image_count: int = 2,
 ) -> None:
     """
     后台执行分析任务
@@ -417,6 +418,7 @@ async def _run_analysis_task(
         topic: 分析话题
         platforms: 平台列表
         debate_rounds: 辩论轮数
+        image_count: AI 配图数量，默认 2 张
     """
     logger.info(f"[_run_analysis_task] 开始执行任务: job_id={job_id}")
     
@@ -445,6 +447,7 @@ async def _run_analysis_task(
             topic=topic,
             platforms=platforms,
             debate_rounds=debate_rounds,
+            image_count=image_count,
         ):
             # 处理错误事件
             if event.get("status") == "error":
@@ -500,19 +503,38 @@ async def _run_analysis_task(
                 )
             
             # 提取结果数据
+            summary_ref = {"value": summary}
+            insight_ref = {"value": insight}
+            title_ref = {"value": title}
+            subtitle_ref = {"value": subtitle}
+            content_ref = {"value": content}
+            tags_ref = {"value": tags}
+            cards_ref = {"value": cards}
+            ai_images_ref = {"value": ai_images}
+            output_file_ref = {"value": output_file}
+            
             _extract_result_data(
                 event=event,
                 agent_name=agent_name,
-                summary_ref={"value": summary},
-                insight_ref={"value": insight},
-                title_ref={"value": title},
-                subtitle_ref={"value": subtitle},
-                content_ref={"value": content},
-                tags_ref={"value": tags},
-                cards_ref={"value": cards},
-                ai_images_ref={"value": ai_images},
-                output_file_ref={"value": output_file},
+                summary_ref=summary_ref,
+                insight_ref=insight_ref,
+                title_ref=title_ref,
+                subtitle_ref=subtitle_ref,
+                content_ref=content_ref,
+                tags_ref=tags_ref,
+                cards_ref=cards_ref,
+                ai_images_ref=ai_images_ref,
+                output_file_ref=output_file_ref,
             )
+            
+            # 从引用中更新变量
+            if ai_images_ref["value"]:
+                ai_images = ai_images_ref["value"]
+                logger.info(f"[_run_analysis_task] 从 _extract_result_data 获取到 {len(ai_images)} 张图片")
+            if cards_ref["value"]:
+                cards = cards_ref["value"]
+            if output_file_ref["value"]:
+                output_file = output_file_ref["value"]
             
             # 更新引用值
             summary = summary or event.get("summary", "")
@@ -532,9 +554,12 @@ async def _run_analysis_task(
                     if parsed_analyst.get("subtitle") and not subtitle:
                         subtitle = parsed_analyst["subtitle"]
             
-            # 处理 writer 输出 - 从 step_content 解析
+            # 处理 writer 输出 - 优先使用 final_copy 字段
             if agent_name.lower() == "writer":
-                writer_content = step_content or event.get("step_content", "")
+                # 优先使用后端发送的 final_copy 字段
+                writer_content = event.get("final_copy") or step_content or event.get("step_content", "")
+                logger.debug(f"[_run_analysis_task] Writer 原始内容来源: final_copy={bool(event.get('final_copy'))}, step_content={bool(step_content)}")
+                logger.debug(f"[_run_analysis_task] Writer 原始内容长度: {len(writer_content) if writer_content else 0}")
                 if writer_content:
                     # 解析 TITLE:, EMOJI:, THEME:, CONTENT: 格式
                     parsed = _parse_writer_output(writer_content)
@@ -544,18 +569,15 @@ async def _run_analysis_task(
                         content = parsed["content"]
                     if parsed.get("tags"):
                         tags = parsed["tags"]
-                    logger.info(f"[_run_analysis_task] Writer 输出解析: title={title[:20] if title else 'N/A'}...")
+                    logger.info(f"[_run_analysis_task] Writer 输出解析: title={title[:20] if title else 'N/A'}..., content_len={len(content)}, tags_count={len(tags)}")
             
             # 处理图片生成输出
             if agent_name.lower() == "image_generator":
-                # 从 step_content 或 event 中提取图片 URL
-                img_content = step_content or ""
-                if "Generated" in img_content and "images" in img_content:
-                    # 尝试从 event 中获取 image_urls
-                    img_urls = event.get("image_urls", [])
-                    if img_urls:
-                        ai_images = img_urls
-                        logger.info(f"[_run_analysis_task] 获取到 {len(ai_images)} 张图片")
+                # 直接从 event 中获取 image_urls
+                img_urls = event.get("image_urls", [])
+                if img_urls:
+                    ai_images = img_urls
+                    logger.info(f"[_run_analysis_task] 获取到 {len(ai_images)} 张图片: {ai_images}")
             
             # 处理输出文件
             if event.get("output_file"):
@@ -744,7 +766,12 @@ def _parse_writer_output(content: str) -> Dict[str, Any]:
     }
     
     if not content:
+        logger.warning("[_parse_writer_output] 输入内容为空")
         return result
+    
+    # 打印原始内容的最后 200 个字符，用于调试标签问题
+    logger.info(f"[_parse_writer_output] 开始解析，输入长度: {len(content)}")
+    logger.info(f"[_parse_writer_output] 原始内容末尾 200 字符: ...{content[-200:] if len(content) > 200 else content}")
     
     lines = content.split('\n')
     content_started = False
@@ -756,6 +783,7 @@ def _parse_writer_output(content: str) -> Dict[str, Any]:
         # 解析 TITLE:
         if line_stripped.upper().startswith("TITLE:"):
             result["title"] = line_stripped[6:].strip()
+            logger.debug(f"[_parse_writer_output] 解析到 TITLE: {result['title'][:30]}...")
             continue
         
         # 解析 EMOJI:
@@ -775,6 +803,7 @@ def _parse_writer_output(content: str) -> Dict[str, Any]:
             remaining = line_stripped[8:].strip()
             if remaining:
                 content_lines.append(remaining)
+            logger.debug(f"[_parse_writer_output] 检测到 CONTENT: 标记，开始收集正文")
             continue
         
         # 收集正文内容
@@ -783,16 +812,21 @@ def _parse_writer_output(content: str) -> Dict[str, Any]:
     
     # 合并正文
     full_content = '\n'.join(content_lines).strip()
+    logger.debug(f"[_parse_writer_output] 收集到正文长度: {len(full_content)}")
     
-    # 提取标签 (以 # 开头的词)
-    tag_pattern = r'#(\w+)'
+    # 提取标签 (以 # 开头的词，支持中文和英文)
+    # 匹配 #标签 格式，标签可以包含中文、英文、数字
+    tag_pattern = r'#([\w\u4e00-\u9fff]+)'
     tags = re.findall(tag_pattern, full_content)
     result["tags"] = tags
+    logger.info(f"[_parse_writer_output] 提取到标签: {tags}, 正文中包含 # 的位置: {[i for i, c in enumerate(full_content) if c == '#']}")
     
     # 移除标签行，保留纯正文
     # 标签通常在最后一行
-    content_without_tags = re.sub(r'\n*#\w+(\s+#\w+)*\s*$', '', full_content).strip()
+    content_without_tags = re.sub(r'\n*#[\w\u4e00-\u9fff]+(\s+#[\w\u4e00-\u9fff]+)*\s*$', '', full_content).strip()
     result["content"] = content_without_tags
+    
+    logger.info(f"[_parse_writer_output] 解析完成: title_len={len(result['title'])}, content_len={len(result['content'])}, tags={len(result['tags'])}")
     
     return result
 
@@ -884,13 +918,20 @@ def _extract_result_data(
                 tags_ref["value"] = result["tags"]
     
     # 提取图片生成结果
-    if agent_name == "image_generator":
-        result = event.get("result", {})
-        if isinstance(result, dict):
-            if result.get("images"):
-                ai_images_ref["value"] = result["images"]
-            if result.get("cards"):
-                cards_ref["value"] = result["cards"]
+    if agent_name == "image_generator" or agent_name.lower() == "image generator":
+        # 优先从 image_urls 获取（后端 SSE 发送的格式）
+        img_urls = event.get("image_urls", [])
+        if img_urls:
+            ai_images_ref["value"] = img_urls
+            logger.debug(f"[_extract_result_data] 从 image_urls 获取到 {len(img_urls)} 张图片")
+        else:
+            # 兼容旧格式 result.images
+            result = event.get("result", {})
+            if isinstance(result, dict):
+                if result.get("images"):
+                    ai_images_ref["value"] = result["images"]
+                if result.get("cards"):
+                    cards_ref["value"] = result["cards"]
     
     # 提取输出文件
     if event.get("output_file"):

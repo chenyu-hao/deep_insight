@@ -273,7 +273,8 @@ class XiaohongshuPublisher:
         if tags:
             processed_tags = [tag.lstrip('#') for tag in tags if tag]
         
-        logger.info(f"[XHS MCP] Publishing: title='{title[:30]}...', images={len(processed_images)}, tags={processed_tags}")
+        logger.info(f"[XHS MCP] Publishing: title='{title[:30]}...', images={len(processed_images)}")
+        logger.info(f"[XHS MCP] Tags 详情: 原始={tags}, 处理后={processed_tags}")
 
         # Build MCP arguments
         mcp_args = {

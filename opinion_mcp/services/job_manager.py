@@ -250,6 +250,12 @@ class JobManager:
                 if tags is not None:
                     job.result.copywriting.tags = tags
         
+        # 记录标签存储情况
+        if tags is not None:
+            logger.info(f"[store_result] 存储标签: {tags}")
+        if job.result.copywriting:
+            logger.info(f"[store_result] copywriting.tags 最终值: {job.result.copywriting.tags}")
+        
         # 更新数据卡片
         if cards is not None:
             job.result.cards = AnalysisCards(
