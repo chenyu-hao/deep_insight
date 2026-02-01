@@ -1,10 +1,12 @@
 # GlobalInSight 快速启动指南
 
+> 本指南适用于 macOS、Linux 和 Windows 系统
+
 ## 🚀 一键启动（推荐）
 
-### macOS 用户
+### macOS / Linux 用户
 
-**方法 1：双击启动（最简单）**
+**方法 1：双击启动（macOS）**
 1. 在 Finder 中找到项目根目录
 2. 双击 `start.command` 文件
 3. 如果提示"无法打开"，右键点击 → 选择"打开" → 点击"打开"
@@ -14,6 +16,19 @@
 ```bash
 # 在项目根目录执行
 ./start.sh
+```
+
+### Windows 用户
+
+**方法 1：双击启动（最简单）**
+1. 在文件资源管理器中找到项目根目录
+2. 双击 `start.bat` 文件
+3. 按照提示完成环境检查和服务启动
+
+**方法 2：命令行启动**
+```cmd
+# 在项目根目录执行
+start.bat
 ```
 
 ### 首次运行会自动完成
@@ -27,7 +42,7 @@
 
 ### 启动后的服务
 
-启动脚本会自动打开 3 个终端窗口：
+启动脚本会自动打开 3 个新窗口（终端/命令行）：
 
 1. **小红书 MCP 服务** - 端口 18060
    - 用于小红书内容发布
@@ -47,9 +62,13 @@
 
 - **Python**: 3.9+ (推荐 3.10 或 3.11)
 - **Node.js**: 16+ (推荐 18+)
-- **系统**: macOS (支持 Intel 和 Apple Silicon)
+- **系统**: macOS / Linux / Windows 10/11
 
 如果环境不满足，脚本会提示安装方法。
+
+**注意**: 
+- macOS 支持 Intel 和 Apple Silicon (M1/M2/M3)
+- Windows 脚本支持 Node.js 版本管理工具（fnm、nvm-windows）
 
 ## 🔧 首次使用配置
 
@@ -67,6 +86,7 @@
 
 如果首次运行时跳过了登录，可以手动登录：
 
+**macOS / Linux:**
 ```bash
 # Apple Silicon (M1/M2/M3)
 cd XHS-MCP/xiaohongshu-mcp-darwin-arm64
@@ -77,59 +97,93 @@ cd XHS-MCP/xiaohongshu-mcp-darwin-amd64
 ./xiaohongshu-login-darwin-amd64
 ```
 
+**Windows:**
+```cmd
+# 进入 MCP 目录
+cd XHS-MCP\xiaohongshu-mcp-windows-amd64
+
+# 运行登录程序
+xiaohongshu-login-windows-amd64.exe
+```
+
 登录后重启 MCP 服务窗口即可。
 
 ## 🛠️ 手动启动（高级用户）
 
 如果需要单独启动某个服务：
 
-### 启动小红书 MCP
+**macOS / Linux:**
 ```bash
-./scripts/start-xhs-mcp.sh
+./scripts/start-xhs-mcp.sh      # 小红书 MCP
+./scripts/start-backend.sh      # 后端服务
+./scripts/start-frontend.sh     # 前端服务
 ```
 
-### 启动后端
-```bash
-./scripts/start-backend.sh
-```
-
-### 启动前端
-```bash
-./scripts/start-frontend.sh
+**Windows:**
+```cmd
+scripts\start-xhs-mcp.bat      # 小红书 MCP
+scripts\start-backend.bat      # 后端服务
+scripts\start-frontend.bat     # 前端服务
 ```
 
 ## ❓ 常见问题
 
-### Q: 双击 start.command 没反应？
-A: 右键点击文件 → 选择"打开" → 在弹出的对话框中点击"打开"。macOS 首次运行未签名的脚本需要此操作。
+### Q: 双击启动文件没反应？
 
-### Q: 提示 Python 或 Node.js 版本过低？
-A: 使用 Homebrew 安装最新版本：
+**macOS:**
+- 右键点击 `start.command` → 选择"打开" → 在弹出的对话框中点击"打开"
+- macOS 首次运行未签名的脚本需要此操作
+
+**Windows:**
+- 右键点击 `start.bat` → 选择"以管理员身份运行"
+- 或在命令行中运行查看错误信息
+
+### Q: 提示 Python 或 Node.js 未安装/版本过低？
+
+**macOS / Linux:**
 ```bash
-# 安装 Python
+# 使用 Homebrew 安装
 brew install python@3.11
-
-# 安装 Node.js
 brew install node
 ```
 
+**Windows:**
+1. 下载并安装 Python: https://www.python.org/downloads/
+   - 安装时勾选 "Add Python to PATH"
+2. 下载并安装 Node.js: https://nodejs.org/
+   - 推荐下载 LTS 版本
+   - 或使用版本管理工具：
+     - fnm: `winget install Schniz.fnm` 然后 `fnm install --lts`
+     - nvm-windows: https://github.com/coreybutler/nvm-windows
+
 ### Q: 依赖安装失败？
-A: 
-1. 确保网络连接正常
-2. 尝试清理缓存后重新运行：
+
+**macOS / Linux:**
 ```bash
+# 清理缓存后重新运行
 rm -rf .venv node_modules
 ./start.sh
+```
+
+**Windows:**
+```cmd
+REM 清理缓存后重新运行
+rmdir /s /q .venv
+rmdir /s /q node_modules
+start.bat
 ```
 
 ### Q: 小红书 MCP 服务连接失败？
 A: 
 1. 检查 MCP 服务窗口是否正常运行
 2. 确认已完成小红书登录
-3. 验证服务: `curl http://localhost:18060/mcp`
+3. 验证服务: 
+   - macOS/Linux: `curl http://localhost:18060/mcp`
+   - Windows: 在浏览器访问 http://localhost:18060/mcp
 
 ### Q: 端口被占用？
-A: 检查并关闭占用端口的进程：
+
+**macOS / Linux:**
 ```bash
 # 查看端口占用
 lsof -i :8000
@@ -140,18 +194,50 @@ lsof -i :18060
 kill -9 <PID>
 ```
 
+**Windows:**
+```cmd
+REM 查看端口占用
+netstat -ano | findstr :8000
+netstat -ano | findstr :5173
+netstat -ano | findstr :18060
+
+REM 关闭进程（将 <PID> 替换为实际进程 ID）
+taskkill /F /PID <PID>
+```
+
 ### Q: 如何停止所有服务？
-A: 在每个终端窗口中按 `Ctrl+C`，或直接关闭终端窗口。
+A: 在每个窗口中按 `Ctrl+C`，或直接关闭窗口。
+
+### Q: Python 虚拟环境激活失败？（Windows）
+A: 如果遇到执行策略错误，以管理员身份运行 PowerShell：
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+### Q: 脚本无法执行？（macOS/Linux）
+A: 添加执行权限：
+```bash
+chmod +x start.sh start.command
+chmod +x scripts/*.sh
+```
 
 ## 📁 脚本文件说明
 
 ```
-start.sh                    # 主启动脚本（检查环境、安装依赖、启动服务）
+# macOS / Linux
+start.sh                    # 主启动脚本
 start.command               # macOS 双击启动入口
 scripts/
-  ├── start-xhs-mcp.sh     # 小红书 MCP 服务启动脚本
-  ├── start-backend.sh     # 后端服务启动脚本
-  └── start-frontend.sh    # 前端服务启动脚本
+  ├── start-xhs-mcp.sh     # 小红书 MCP 服务
+  ├── start-backend.sh     # 后端服务
+  └── start-frontend.sh    # 前端服务
+
+# Windows
+start.bat                   # 主启动脚本
+scripts/
+  ├── start-xhs-mcp.bat    # 小红书 MCP 服务
+  ├── start-backend.bat    # 后端服务
+  └── start-frontend.bat   # 前端服务
 ```
 
 ## 🎯 下一步
@@ -168,10 +254,12 @@ scripts/
 ## 📚 更多文档
 
 - [完整 README](README.md)
+- [启动指南总览](STARTUP_GUIDE.md)
+- [脚本说明文档](scripts/README.md)
 - [小红书 MCP 设置指南](docs/XHS_SETUP.md)
 - [API 使用文档](src/API_USAGE.md)
 - [项目文档](Project_Documentation/)
 
 ---
 
-**提示**: 如果遇到问题，请查看各个终端窗口的日志输出，通常会有详细的错误信息。
+**提示**: 如果遇到问题，请查看各个窗口的日志输出，通常会有详细的错误信息。

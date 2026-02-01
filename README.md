@@ -14,11 +14,12 @@
 - **Python**：3.9+（推荐 3.10 或 3.11）
 - **Node.js**：16+（推荐 18+）
 - **包管理**：pip / npm
-- **操作系统**：macOS / Linux / Windows
+- **操作系统**：macOS / Linux / Windows 10/11
 - **依赖版本要求**：
   - fastapi >= 0.110.0
   - pydantic >= 2.5.0
   - uvicorn >= 0.27.0
+- **支持 Node.js 版本管理工具**：fnm、nvm、nvm-windows
 
 ## 核心功能
 
@@ -34,27 +35,70 @@
 
 ## 快速开始
 
-### 1. 克隆项目
+### 🚀 一键启动（推荐）
+
+我们提供了跨平台的一键启动脚本，自动完成环境检查、依赖安装和服务启动：
+
+**macOS / Linux:**
+```bash
+# 方法 1: 双击启动（macOS）
+# 在 Finder 中双击 start.command 文件
+
+# 方法 2: 终端启动
+./start.sh
+```
+
+**Windows:**
+```cmd
+# 方法 1: 双击启动
+# 在文件资源管理器中双击 start.bat 文件
+
+# 方法 2: 命令行启动
+start.bat
+```
+
+启动脚本会自动：
+- ✅ 检查 Python 和 Node.js 环境
+- ✅ 创建虚拟环境并安装所有依赖
+- ✅ 下载小红书 MCP 服务
+- ✅ 引导完成小红书登录（可选）
+- ✅ 在新窗口中启动所有服务
+
+**详细指南**：
+- macOS 用户：[QUICK_START.md](QUICK_START.md)
+- Windows 用户：[QUICK_START_WINDOWS.md](QUICK_START_WINDOWS.md)
+- 跨平台总览：[STARTUP_GUIDE.md](STARTUP_GUIDE.md)
+
+---
+
+### 📋 手动安装（高级用户）
+
+如果你更喜欢手动控制每个步骤，可以按照以下说明操作：
+
+#### 1. 克隆项目
 
 ```bash
 git clone <repository-url>
 cd GlobalInSight
 ```
 
-### 2. 小红书 MCP 服务设置（必须）
+#### 2. 小红书 MCP 服务设置（必须）
 
 本项目的小红书发布功能依赖外部 MCP 服务，请先完成以下设置：
 
-#### 2.1 下载 MCP 服务程序
+##### 2.1 下载 MCP 服务程序
 
 根据您的系统架构选择对应版本：
 
+**macOS:**
 ```bash
-# macOS (Apple Silicon / M1/M2/M3)
+# Apple Silicon (M1/M2/M3)
+mkdir -p XHS-MCP/xiaohongshu-mcp-darwin-arm64
 curl -L -o XHS-MCP/xiaohongshu-mcp-darwin-arm64/xiaohongshu-mcp-darwin-arm64 https://github.com/xpzouying/xiaohongshu-mcp/releases/latest/download/xiaohongshu-mcp-darwin-arm64
 curl -L -o XHS-MCP/xiaohongshu-mcp-darwin-arm64/xiaohongshu-login-darwin-arm64 https://github.com/xpzouying/xiaohongshu-mcp/releases/latest/download/xiaohongshu-login-darwin-arm64
 
-# macOS (Intel)
+# Intel
+mkdir -p XHS-MCP/xiaohongshu-mcp-darwin-amd64
 curl -L -o XHS-MCP/xiaohongshu-mcp-darwin-amd64/xiaohongshu-mcp-darwin-amd64 https://github.com/xpzouying/xiaohongshu-mcp/releases/latest/download/xiaohongshu-mcp-darwin-amd64
 curl -L -o XHS-MCP/xiaohongshu-mcp-darwin-amd64/xiaohongshu-login-darwin-amd64 https://github.com/xpzouying/xiaohongshu-mcp/releases/latest/download/xiaohongshu-login-darwin-amd64
 
@@ -63,18 +107,25 @@ chmod +x XHS-MCP/xiaohongshu-mcp-darwin-*/xiaohongshu-mcp-darwin-*
 chmod +x XHS-MCP/xiaohongshu-mcp-darwin-*/xiaohongshu-login-darwin-*
 ```
 
-#### 2.2 首次登录小红书（必须）
+**Windows:**
+```cmd
+REM 创建目录
+mkdir XHS-MCP\xiaohongshu-mcp-windows-amd64
 
+REM 下载文件（使用 PowerShell）
+powershell -Command "Invoke-WebRequest -Uri 'https://github.com/xpzouying/xiaohongshu-mcp/releases/latest/download/xiaohongshu-mcp-windows-amd64.exe' -OutFile 'XHS-MCP\xiaohongshu-mcp-windows-amd64\xiaohongshu-mcp-windows-amd64.exe'"
+powershell -Command "Invoke-WebRequest -Uri 'https://github.com/xpzouying/xiaohongshu-mcp/releases/latest/download/xiaohongshu-login-windows-amd64.exe' -OutFile 'XHS-MCP\xiaohongshu-mcp-windows-amd64\xiaohongshu-login-windows-amd64.exe'"
+```
+
+##### 2.2 首次登录小红书（必须）
+
+**macOS:**
 ```bash
 # 进入 XHS-MCP 目录
-cd XHS-MCP/xiaohongshu-mcp-darwin-arm64
+cd XHS-MCP/xiaohongshu-mcp-darwin-arm64  # 或 darwin-amd64
 
 # 运行登录工具获取 cookie
-# Apple Silicon:
-./xiaohongshu-login-darwin-arm64
-
-# Intel (如果是 Intel 芯片，请先 cd ../xiaohongshu-mcp-darwin-amd64):
-./xiaohongshu-login-darwin-amd64
+./xiaohongshu-login-darwin-arm64  # 或 darwin-amd64
 
 # 程序会打开浏览器窗口，扫码登录小红书
 # 登录成功后关闭窗口，程序会自动保存登录状态到 cookies.json
@@ -83,19 +134,40 @@ cd XHS-MCP/xiaohongshu-mcp-darwin-arm64
 cd ../..
 ```
 
-#### 2.3 启动 MCP 服务（保持运行）
+**Windows:**
+```cmd
+REM 进入 XHS-MCP 目录
+cd XHS-MCP\xiaohongshu-mcp-windows-amd64
 
+REM 运行登录工具
+xiaohongshu-login-windows-amd64.exe
+
+REM 程序会打开浏览器窗口，扫码登录小红书
+REM 登录成功后关闭窗口，程序会自动保存登录状态到 cookies.json
+
+REM 返回项目根目录
+cd ..\..
+```
+
+##### 2.3 启动 MCP 服务（保持运行）
+
+**macOS:**
 ```bash
 # 在新的终端窗口中启动服务（默认端口 18060）
-cd XHS-MCP/xiaohongshu-mcp-darwin-arm64
-
-# Apple Silicon:
-./xiaohongshu-mcp-darwin-arm64
-
-# Intel (如果是 Intel 芯片，请先 cd ../xiaohongshu-mcp-darwin-amd64):
-./xiaohongshu-mcp-darwin-amd64
+cd XHS-MCP/xiaohongshu-mcp-darwin-arm64  # 或 darwin-amd64
+./xiaohongshu-mcp-darwin-arm64  # 或 darwin-amd64
 
 # 验证服务是否正常运行（在另一个终端窗口）
+curl http://localhost:18060/mcp
+```
+
+**Windows:**
+```cmd
+REM 在新的命令行窗口中启动服务（默认端口 18060）
+cd XHS-MCP\xiaohongshu-mcp-windows-amd64
+xiaohongshu-mcp-windows-amd64.exe
+
+REM 验证服务是否正常运行（在另一个命令行窗口）
 curl http://localhost:18060/mcp
 ```
 
@@ -105,16 +177,14 @@ curl http://localhost:18060/mcp
 - 如果发布失败提示未登录，请重新运行步骤 2.2 的登录工具
 - 详细文档：[XHS_SETUP.md](docs/XHS_SETUP.md)
 
-### 3. 后端设置
+#### 3. 后端设置
 
+**macOS / Linux:**
 ```bash
 # 创建虚拟环境
-python -m venv .venv
+python3 -m venv .venv
 
 # 激活虚拟环境
-# Windows:
-.venv\Scripts\activate
-# macOS/Linux:
 source .venv/bin/activate
 
 # 安装依赖
@@ -131,11 +201,33 @@ playwright install chromium
 python -m app.main
 ```
 
+**Windows:**
+```cmd
+REM 创建虚拟环境
+python -m venv .venv
+
+REM 激活虚拟环境
+.venv\Scripts\activate.bat
+
+REM 安装依赖
+pip install -r requirements.txt
+
+REM 配置环境变量(可选)
+copy .env.example .env
+REM 编辑 .env 文件，填入你的 API Keys
+
+REM 安装 Playwright 浏览器（用于爬虫）
+playwright install chromium
+
+REM 启动后端服务
+python -m app.main
+```
+
 后端服务将在 `http://localhost:8000` 启动
 - API 文档：`http://localhost:8000/docs`
 - API 前缀：`/api`
 
-### 4. 前端设置
+#### 4. 前端设置
 
 ```bash
 # 安装依赖（在项目根目录）
@@ -147,7 +239,7 @@ npm run dev
 
 前端服务将在 `http://localhost:5173` 启动
 
-### 5. 首次使用配置
+#### 5. 首次使用配置
 
 1. 打开浏览器访问 `http://localhost:5173`
 2. 进入"设置"页面
