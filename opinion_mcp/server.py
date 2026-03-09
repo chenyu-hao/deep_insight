@@ -48,6 +48,7 @@ from opinion_mcp.tools import (
     publish_to_xhs,
     get_settings,
     register_webhook,
+    generate_topic_cards,
 )
 from opinion_mcp.tools.validate_publish import validate_publish
 
@@ -300,6 +301,25 @@ MCP_TOOLS: List[MCPTool] = [
             required=[]
         )
     ),
+    MCPTool(
+        name="generate_topic_cards",
+        description="为已完成的分析任务生成数据卡片图片（标题卡、观点卡、辩论时间线、趋势图、雷达图、核心发现、平台热度）。需要先启动渲染服务 (renderer/)。",
+        inputSchema=MCPToolInput(
+            type="object",
+            properties={
+                "job_id": {
+                    "type": "string",
+                    "description": "分析任务 ID，留空则使用最近完成的任务"
+                },
+                "card_types": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "指定要生成的卡片类型，留空则生成所有。可选: title, insight, debate_timeline, trend, radar, key_findings, platform_heat"
+                }
+            },
+            required=[]
+        )
+    ),
 ]
 
 # 工具名称到函数的映射
@@ -313,6 +333,7 @@ TOOL_HANDLERS = {
     "get_settings": get_settings,
     "register_webhook": register_webhook,
     "validate_publish": validate_publish,
+    "generate_topic_cards": generate_topic_cards,
 }
 
 

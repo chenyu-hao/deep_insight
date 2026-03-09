@@ -36,6 +36,11 @@ from opinion_mcp.tools.settings import (
     register_webhook,
 )
 
+# 卡片渲染工具
+from opinion_mcp.tools.render_cards import (
+    generate_topic_cards,
+)
+
 __all__ = [
     # 分析相关
     "analyze_topic",
@@ -49,4 +54,6 @@ __all__ = [
     # 设置和 Webhook
     "get_settings",
     "register_webhook",
+    # 卡片渲染
+    "generate_topic_cards",
 ]

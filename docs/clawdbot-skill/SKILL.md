@@ -285,6 +285,45 @@ curl -X POST http://localhost:18061/publish_to_xhs \
 curl http://localhost:18061/get_settings
 ```
 
+### 8. 生成数据卡片 (generate_topic_cards) 🆕
+
+为已完成的分析任务生成数据卡片图片。需要先启动渲染服务。
+
+```bash
+curl -X POST http://localhost:18061/generate_topic_cards \
+  -H "Content-Type: application/json" \
+  -d '{
+    "job_id": "job_xxx",
+    "card_types": ["title", "insight", "debate_timeline"]
+  }'
+```
+
+**参数说明**:
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| job_id | string | ❌ | 最近任务 | 分析任务 ID |
+| card_types | string[] | ❌ | 全部 | 指定卡片类型，留空生成所有 |
+
+**可用卡片类型**: `title`(标题卡), `insight`(洞察卡), `debate_timeline`(辩论时间线), `trend`(趋势图), `radar`(雷达图), `key_findings`(核心发现), `platform_heat`(平台热度)
+
+**返回**:
+```json
+{
+  "success": true,
+  "cards": {
+    "title": "/path/to/outputs/cards/title.png",
+    "insight": "/path/to/outputs/cards/insight.png"
+  },
+  "failed": [],
+  "message": "✅ 成功生成 7 张卡片"
+}
+```
+
+**前置条件**: 需要先启动卡片渲染服务：
+```bash
+./scripts/start-renderer.sh    # 卡片渲染 (端口 3001)
+```
+
 ---
 
 ## 📊 默认参数说明
@@ -423,12 +462,14 @@ cd /Users/napstablook/Projects/GlobalInSight
 ./start.sh                        # 后端 API (端口 8000)
 ./scripts/start-opinion-mcp.sh    # Opinion MCP (端口 18061)
 ./scripts/start-xhs-mcp.sh        # 小红书发布 (端口 18060，可选)
+./scripts/start-renderer.sh       # 卡片渲染 (端口 3001，可选)
 ```
 
 检查服务状态：
 ```bash
 curl http://localhost:8000/api/health
 curl http://localhost:18061/health
+curl http://localhost:3001/healthz   # 渲染服务
 ```
 
 ---
@@ -440,6 +481,7 @@ curl http://localhost:18061/health
 | 后端 API | 8000 | `curl http://localhost:8000/api/health` |
 | Opinion MCP | 18061 | `curl http://localhost:18061/health` |
 | XHS MCP | 18060 | `curl http://localhost:18060/mcp` |
+| 卡片渲染 | 3001 | `curl http://localhost:3001/healthz` |
 
 ---
 
