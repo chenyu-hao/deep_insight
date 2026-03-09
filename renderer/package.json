@@ -1,0 +1,17 @@
+{
+  "name": "globalinsight-renderer",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Standalone card renderer for GlobalInSight (OpenClaw / MCP backend)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "vite build",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "playwright": "^1.49.0",
+    "vite": "^5.4.0"
+  }
+}
