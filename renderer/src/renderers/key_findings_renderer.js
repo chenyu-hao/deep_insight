@@ -1,74 +1,129 @@
 /**
- * Key Findings Card renderer – mirrors KeyFindingsCanvas.vue generateImage()
+ * Key Findings Card renderer
  *
  * Input: { findings: [string, string, string] }
  */
 import {
-  WIDTH, HEIGHT, FONT_FAMILY, EMOJI_FONT,
-  createCard, drawGradientBg, drawHeader, wrapText, toPng,
+  WIDTH, HEIGHT, FONT_FAMILY,
+  createCard, drawAppleBackdrop, drawAmbientOrbs,
+  drawHeader, drawPanel, drawSectionLabel, drawWatermark,
+  wrapText, clampLines, withAlpha, toPng,
 } from './base.js';
+
+const ACCENT = '#0a84ff';
+const RANK_COLORS = ['#0a84ff', '#5e5ce6', '#30d158'];
 
 export default function renderKeyFindings(data) {
   const canvas = createCard();
   const ctx = canvas.getContext('2d');
-  const findings = ((data && data.findings) || []).slice(0, 3);
 
-  // 1. Warm gradient background
-  drawGradientBg(ctx, '#fff7ed', '#fef3c7');
+  const raw = ((data && data.findings) || [])
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const findings = raw.length > 0 ? raw : ['暂无关键发现，等待更多样本。'];
 
-  // 2. Header
-  drawHeader(ctx, {
-    emoji: '✨', title: '关键发现', bgColor: '#fed7aa', textColor: '#78350f',
+  drawAppleBackdrop(ctx, {
+    start: '#f8f9fc',
+    end: '#eef1f6',
+    topLight: '#ffffff',
+    bottomTint: '#dbeafe',
+    textureAlpha: 0.012,
   });
-  const headerBottom = 80 + 120;
+  drawAmbientOrbs(ctx, [
+    { x: 170, y: 260, r: 240, color: '#dbeafe', alpha: 0.2 },
+    { x: 910, y: 1120, r: 300, color: '#c7d2fe', alpha: 0.16 },
+  ]);
 
-  // 3. Findings list
-  const listY = headerBottom + 80;
-  const spacing = 180;
-  const maxW = WIDTH - 280;
+  const headerBottom = drawHeader(ctx, {
+    emoji: '✨',
+    title: '关键发现',
+    bgColor: '#dbeafe',
+    textColor: '#0f172a',
+  });
+
+  const sectionY = headerBottom + 46;
+  drawPanel(ctx, 58, sectionY, WIDTH - 116, 980, {
+    radius: 36,
+    fill: 'rgba(255,255,255,0.64)',
+    stroke: 'rgba(255,255,255,0.88)',
+    shadow: 'rgba(15, 23, 42, 0.06)',
+    shadowBlur: 24,
+    shadowY: 10,
+  });
+  drawSectionLabel(ctx, '发现摘要', 98, sectionY + 36, ACCENT);
+
+  const itemCount = findings.length;
+  const contentTop = sectionY + 108;
+  const summaryY = sectionY + 860;
+  const contentHeight = summaryY - contentTop - 24;
+  const itemGap = itemCount === 1 ? 0 : 26;
+  let itemHeight = Math.floor((contentHeight - itemGap * (itemCount - 1)) / itemCount);
+  let startY = contentTop;
+  if (itemCount === 1) {
+    itemHeight = 360;
+    startY = contentTop + Math.max(0, Math.floor((contentHeight - itemHeight) / 2));
+  }
 
   findings.forEach((finding, i) => {
-    const itemY = listY + i * spacing;
+    const y = startY + i * (itemHeight + itemGap);
+    const badgeColor = RANK_COLORS[i % RANK_COLORS.length];
 
-    // numbered circle
-    ctx.fillStyle = '#f97316';
-    ctx.beginPath();
-    ctx.arc(120, itemY, 35, 0, Math.PI * 2);
+    drawPanel(ctx, 86, y, WIDTH - 172, itemHeight, {
+      radius: 26,
+      fill: 'rgba(255,255,255,0.6)',
+      stroke: 'rgba(255,255,255,0.86)',
+      shadow: withAlpha(badgeColor, 0.08),
+      shadowBlur: 16,
+      shadowY: 6,
+    });
+
+    ctx.fillStyle = withAlpha(badgeColor, 0.14);
+    roundRect(ctx, 106, y + 22, 88, itemHeight - 44, 24);
     ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `bold 48px ${FONT_FAMILY}`;
+
+    ctx.fillStyle = badgeColor;
+    ctx.font = `700 40px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(i + 1), 120, itemY);
+    ctx.fillText(String(i + 1), 150, y + itemHeight / 2 + 2);
 
-    // text
-    ctx.fillStyle = '#78350f';
-    ctx.font = `42px ${FONT_FAMILY}`;
+    const textX = 224;
+    const textW = WIDTH - 312;
+    const lineHeight = itemCount === 1 ? 54 : 46;
+    const maxLines = itemCount === 1 ? 5 : 3;
+    const baseFont = itemCount === 1 ? 40 : 34;
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = `620 ${baseFont}px ${FONT_FAMILY}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    const lines = wrapText(ctx, finding, maxW);
-    lines.forEach((line, li) => ctx.fillText(line, 200, itemY - 20 + li * 60));
+    const lines = clampLines(wrapText(ctx, finding, textW), maxLines);
+    lines.forEach((line, li) => {
+      ctx.fillText(line || ' ', textX, y + 32 + li * lineHeight);
+    });
   });
 
-  // 4. Decorative wave
-  ctx.fillStyle = 'rgba(251,146,60,0.1)';
-  ctx.beginPath();
-  ctx.moveTo(0, HEIGHT - 200);
-  for (let x = 0; x <= WIDTH; x += 50) {
-    ctx.lineTo(x, HEIGHT - 200 + Math.sin(x / 100) * 30);
-  }
-  ctx.lineTo(WIDTH, HEIGHT);
-  ctx.lineTo(0, HEIGHT);
-  ctx.closePath();
-  ctx.fill();
+  drawPanel(ctx, 86, summaryY, WIDTH - 172, 96, {
+    radius: 20,
+    fill: 'rgba(248,250,252,0.8)',
+    stroke: 'rgba(226,232,240,0.9)',
+    shadow: 'rgba(15, 23, 42, 0.03)',
+    shadowBlur: 10,
+    shadowY: 4,
+  });
+  ctx.fillStyle = '#475569';
+  ctx.font = `520 27px ${FONT_FAMILY}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('按重要性排序，便于直接转为图文要点。', 118, summaryY + 50);
 
-  // 5. Watermark (orange tint matching theme)
-  ctx.fillStyle = '#d97706';
-  ctx.font = `22px ${FONT_FAMILY}`;
-  ctx.textAlign = 'center';
-  ctx.fillText('* 关键发现由 LLM 多维度分析自动提取', WIDTH / 2, HEIGHT - 95);
-  ctx.font = `24px ${FONT_FAMILY}`;
-  ctx.fillText('@观潮GlobalInSight · AI舆情洞察', WIDTH / 2, HEIGHT - 60);
+  drawWatermark(ctx, '* 关键发现由多维语义分析自动提取');
 
   return toPng(canvas);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
 }
