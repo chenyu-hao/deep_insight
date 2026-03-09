@@ -11,6 +11,7 @@ MCP 发布工具
 Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5
 """
 
+import os
 import sys
 from typing import Any, Dict, List, Optional
 from loguru import logger
@@ -65,39 +66,45 @@ async def collect_images_for_publish(
     """
     # 收集图片 URL
     all_images: List[str] = []
+    # 已经是本地文件的路径（由 generate_topic_cards 写入），无需下载
+    local_card_paths: List[str] = []
     
     if mode == "ai_and_cards":
         # 阶段 B: 先添加数据卡片，再添加 AI 配图
         if result.cards:
             cards = result.cards
-            if cards.title_card:
-                all_images.append(cards.title_card)
-            if cards.debate_timeline:
-                all_images.append(cards.debate_timeline)
-            if cards.trend_analysis:
-                all_images.append(cards.trend_analysis)
-            if cards.platform_radar:
-                all_images.append(cards.platform_radar)
+            for card_path in [cards.title_card, cards.debate_timeline, cards.trend_analysis, cards.platform_radar]:
+                if card_path:
+                    if os.path.isfile(card_path):
+                        local_card_paths.append(card_path)
+                    else:
+                        all_images.append(card_path)
     
     # 添加 AI 生成图片
     if result.ai_images:
         all_images.extend(result.ai_images)
     
-    if not all_images:
+    if not all_images and not local_card_paths:
         return [], []
     
-    # 下载图片到本地（火山引擎 URL 有时效性）
-    logger.info(f"[collect_images] 开始下载 {len(all_images)} 张图片到本地...")
-    local_paths, download_results = await download_images(
-        all_images,
-        timeout=30.0,
-        concurrency=3,
-    )
+    # 下载远程图片到本地（火山引擎 URL 有时效性）
+    local_paths: List[str] = []
+    failed_images: List[str] = []
     
-    # 收集失败的图片
-    failed_images = [r.original_url for r in download_results if not r.success]
+    if all_images:
+        logger.info(f"[collect_images] 开始下载 {len(all_images)} 张远程图片到本地...")
+        downloaded_paths, download_results = await download_images(
+            all_images,
+            timeout=30.0,
+            concurrency=3,
+        )
+        local_paths.extend(downloaded_paths)
+        failed_images = [r.original_url for r in download_results if not r.success]
     
-    return local_paths, failed_images
+    # 本地卡片路径放在最前面
+    final_paths = local_card_paths + local_paths
+    
+    return final_paths, failed_images
 
 
 # ============================================================

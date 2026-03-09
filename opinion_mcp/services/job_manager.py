@@ -367,6 +367,22 @@ class JobManager:
         logger.info(f"任务 {job_id} Webhook URL 已设置: {webhook_url}")
         return job
     
+    def get_latest_completed_job(self) -> Optional[JobInfo]:
+        """
+        获取最近完成的任务
+
+        Returns:
+            Optional[JobInfo]: 最近完成的任务，没有则返回 None
+        """
+        completed = [
+            j for j in self._jobs.values()
+            if j.status == JobStatus.COMPLETED
+        ]
+        if not completed:
+            return None
+        completed.sort(key=lambda j: j.completed_at or j.created_at, reverse=True)
+        return completed[0]
+
     def list_jobs(
         self,
         status: Optional[JobStatus] = None,
