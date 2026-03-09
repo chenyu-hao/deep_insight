@@ -143,7 +143,7 @@ export default function renderTitleCard(data) {
   };
 
   // Auto-size font
-  let fontSize = 135;
+  let fontSize = 128;
   let lines;
   const maxLines = 6;
   while (fontSize >= 60) {
