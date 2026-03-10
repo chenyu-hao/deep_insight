@@ -2,6 +2,18 @@
 
 > ⚠️ **测试版 (Beta)** - 本项目仍在积极开发中，功能可能不稳定，API 可能变更
 
+<p align="center">
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#核心功能">核心功能</a> ·
+  <a href="#典型工作流">典型工作流</a> ·
+  <a href="#使用方式推荐演示路径">使用方式</a> ·
+  <a href="#opinion-mcp-服务-openclaw--clawdbot-深度集成">OpenClaw 集成</a> ·
+  <a href="#常见问题">FAQ</a>
+</p>
+
+![GlobalInSight Hero](docs/assets/Hero.jpg)
+
+
 ## 项目名称
 **GlobalInSight：多阶段舆情解读与热点对齐系统**
 
@@ -9,6 +21,20 @@
 - **当前版本**：v0.9.0-beta
 - **更新日期**：2026-01-28
 - **状态**：🧪 测试版
+
+## 项目简介
+
+GlobalInSight 是一个围绕 **“热点发现 → 多平台采集 → 多阶段舆情解读 → 结果可视化 → 小红书发布”** 打通的端到端系统。
+
+它不是单一的爬虫工具，也不是单一的内容生成器，而是把热点监测、跨平台信息汇总、LLM 推理、多视角辩论、图文生成与发布流程连接成一个完整工作流，帮助你更快地把“值得跟进的话题”转化为“可以交付的内容结果”。
+
+## 为什么是 GlobalInSight
+
+- **不是只看热榜，而是直接进入可执行工作流**：从发现热点到生成可发布内容，中间链路完整可追踪。
+- **不是单平台视角，而是跨平台舆论拼接**：支持小红书、抖音、快手、B站、微博、贴吧、知乎等数据源。
+- **不是一次性摘要，而是多阶段推理**：支持事实提炼、态势分析、观点辩论、文案生成与配图生成。
+- **不是只能点网页，而是支持对话式调用**：已可通过 OpenClaw 作为自然语言入口，以 MCP 方式接入完整分析与发布能力。
+- **不是拼凑脚本，而是前后端一体化系统**：提供 Web UI、后端 API、MCP 服务与第三方能力集成。
 
 ## 运行环境
 - **Python**：3.9+（推荐 3.10 或 3.11）
@@ -29,10 +55,64 @@
 | 🤖 LLM 多阶段解读 | 热点对齐、演化分析、内容生成 | ✅ 稳定 |
 | 🖼️ AI 图片生成 | 火山引擎 Volcengine 配图 | ✅ 稳定 |
 | 📱 小红书发布 | 一键发布到小红书 | ✅ 稳定 |
-| 💬 ClawdBot 集成 | Telegram 对话式操作 | 🧪 测试中 |
+| 💬 OpenClaw 集成 | 对话式分析与发布入口 | ✅ 已集成 |
 | 📈 数据可视化 | 热度对比、关键词云、情感分析 | ✅ 稳定 |
 
+## 适用场景
+
+- **热点内容运营**：快速判断一个话题是否值得跟进，并生成适合发布的内容草稿。
+- **品牌 / 行业舆情跟踪**：聚合同一议题在多个平台上的反馈，减少单平台偏差。
+- **研究与演示**：将复杂舆情分析流程可视化，适合 demo、汇报和内部验证。
+- **AI 对话式操作**：通过 OpenClaw 直接发起分析、查看进度、修改文案并发布。
+
+## 典型工作流
+
+```text
+发现热点 / 输入议题
+        ↓
+多平台数据采集与热榜聚合
+        ↓
+LLM 多阶段处理（提炼 / 对齐 / 辩论 / 生成）
+        ↓
+生成文案、卡片、配图与数据可视化
+        ↓
+Web UI 预览或通过 OpenClaw 对话式调用
+        ↓
+发布到小红书
+```
+
+
 ## 快速开始
+
+### 快速启动脚本入口（推荐）
+
+如果你已经完成下面的安装步骤，后续日常开发更推荐直接使用 `scripts/` 目录里的启动脚本，而不是每次手动输入一长串命令。
+
+```bash
+# 启动后端 API（FastAPI, 8000）
+./scripts/start-backend.sh
+
+# 启动前端开发服务器（Vite, 5173）
+./scripts/start-frontend.sh
+
+# 启动 Opinion MCP（18061）
+./scripts/start-opinion-mcp.sh
+
+# 启动卡片渲染服务（3001）
+./scripts/start-renderer.sh
+
+# 启动小红书 MCP（18060）
+./scripts/start-xhs-mcp.sh
+```
+
+如需先完成爬虫/平台登录，也可以使用：
+
+```bash
+# 默认登录小红书，也可替换为 dy / ks / wb / bili / tieba / zhihu
+./scripts/start-crawler-login.sh xhs
+```
+
+> 说明：以上脚本是对下方安装与启动命令的封装入口，便于日常开发使用；**下面的原始安装步骤仍然保留，且仍然是完整、已验证的权威流程**。
 
 ### 1. 克隆项目
 
@@ -161,6 +241,22 @@ npm run dev
 - 如需清除所有设置，点击设置页面右上角的"清除缓存"按钮
 - 切换到新环境时，建议先清除缓存后重新配置
 
+## 建议补充的 README 截图位
+
+![Main Page](docs/assets/main_page.png)
+
+
+![Hot Page](docs/assets/hot_page.png)
+
+
+<details>
+<summary>查看 OpenClaw（TG）页面截图（长图）</summary>
+
+[![Openclaw Page](docs/assets/Openclaw_page.png)](docs/assets/Openclaw_page.png)
+
+</details>
+
+
 ## 使用方式（推荐演示路径）
 
 - **首页（Home）**：输入议题 → 启动分析 → 观察 SSE 实时日志 → 查看预览页面 → 一键发布小红书
@@ -190,6 +286,30 @@ gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 - `MediaCrawler/`：第三方爬虫库（已集成到项目中）
 - `XHS-MCP/`：小红书 MCP 服务二进制文件
 - `Project_Documentation/`：项目文档
+
+## 架构速览
+
+```text
+前端 Web UI (Vue3)
+        ↓
+FastAPI 后端 / 任务编排 / LLM 服务
+        ↓
+数据采集层（MediaCrawler / 热榜聚合 / 平台服务）
+        ↓
+结果生成层（文案 / 卡片 / 图片 / 可视化）
+        ↓
+发布层（xiaohongshu-mcp）
+
+并行能力：
+OpenClaw  ←→  Opinion MCP Server  ←→  GlobalInSight
+```
+
+### 架构理解重点
+
+- **Web UI** 适合人工观察、调参、演示与可视化查看。
+- **后端服务** 负责统一编排采集、推理、生成与发布链路。
+- **Opinion MCP** 负责把核心能力暴露给支持 MCP 的 AI 客户端。
+- **小红书 MCP** 作为发布层能力接入，保持单独运行但已在系统流程中打通。
 
 ## 常见问题
 
@@ -312,11 +432,18 @@ uv run uvicorn api.main:app --port 8080 --reload
 
 ---
 
-## 🤖 Opinion MCP 服务 (ClawdBot 集成) 🧪
+## 🤖 Opinion MCP 服务 (OpenClaw / ClawdBot 深度集成)
 
-> ⚠️ **测试功能** - ClawdBot 集成目前处于测试阶段
+Opinion MCP 是 GlobalInSight 面向 **OpenClaw / ClawdBot** 的对话式能力入口。它基于 Model Context Protocol (MCP) 暴露系统能力，已经可以把 **舆论分析、热榜获取、结果查询、文案修改与小红书发布** 接入到 OpenClaw / ClawdBot 的对话工作流中。
 
-Opinion MCP 是一个基于 Model Context Protocol (MCP) 的舆论分析服务，允许 AI 助手（如 ClawdBot/Moltbot）通过 Telegram 调用 GlobalInSight 的舆论分析功能。
+换句话说：OpenClaw / ClawdBot 不再只是“外部调用方”，而是已经作为 GlobalInSight 的自然语言操作入口完整接入，可以直接驱动分析、预览与发布链路。
+
+### 集成价值
+
+- **一句话发起分析**：无需先打开页面逐项点击配置。
+- **任务进度可回推**：分析过程中可持续获得状态更新。
+- **结果预览后再发布**：支持先审阅文案，再决定是否发布到小红书。
+- **适合嵌入现有 AI 工作流**：便于接入支持 MCP 的客户端或 Agent 系统。
 
 ### 功能特点
 
@@ -354,27 +481,52 @@ curl http://localhost:18061/health
 | `publish_to_xhs` | 将分析结果发布到小红书（含防重复机制） |
 | `register_webhook` | 注册进度推送的 Webhook URL |
 
-### ClawdBot 集成
+### OpenClaw 用法
 
-详细集成文档请参考：[ClawdBot 集成指南](docs/CLAWDBOT_MCP_INTEGRATION.md)
+详细集成文档请参考：[ClawdBot / OpenClaw 集成指南](docs/CLAWDBOT_MCP_INTEGRATION.md)
 
-1. 复制配置示例文件：
-   ```bash
-   cp clawdbot-config.example.yaml /path/to/clawdbot/config.yaml
-   ```
+1. 启动 `Opinion MCP` 服务，确保本地地址为 `http://localhost:18061`
+2. 将下面 3 个 skill 文件夹整体复制到 OpenClaw 对应的 skills 目录
 
-2. 修改配置文件中的 `url` 为实际部署地址
+```bash
+docs/clawdbot-skill/opinion-hot-news/
+docs/clawdbot-skill/opinion-topic-analysis/
+docs/clawdbot-skill/xhs-publisher/
+```
 
-3. 重启 ClawdBot 服务
+3. 确认 OpenClaw 的 MCP 运行时已绑定 `opinion-analyzer`
+   - `mcporter / ClawdBot`: `http://localhost:18061`
+   - 原生 MCP SSE: `http://localhost:18061/sse`
+4. 重新打开 OpenClaw 会话或触发 skills reload
+
+这 3 个 skill 都是单文件平铺版，运行时不依赖额外的 `references/`。
+
+### 推荐的对话式体验
+
+你可以把 OpenClaw / ClawdBot 视为这个系统的“自然语言控制台”：
+
+1. 用户描述想分析的话题
+2. OpenClaw 调用 `analyze_topic` 发起任务
+3. 系统通过状态查询 / Webhook 持续反馈进度
+4. 用户查看结果摘要、文案和卡片预览
+5. 用户确认后调用 `publish_to_xhs` 完成发布
+
+这种方式非常适合演示、内容运营协作以及把分析流程嵌入到已有 AI 助手工作流中。
+
+### 推荐入口
+
+- `opinion-hot-news`: 查看今日热点 / 热榜
+- `opinion-topic-analysis`: 分析明确话题、生成文案和卡片
+- `xhs-publisher`: 发布已有分析结果到小红书
 
 ### 使用示例
 
-通过 Telegram 与 ClawdBot 对话：
+在 OpenClaw / ClawdBot 中的典型用法：
 
 ```
-用户: 帮我分析"DeepSeek开源"这个话题
+/opinion-topic-analysis 分析一下 "DeepSeek开源" 这个话题
 
-ClawdBot: 好的！请告诉我：
+OpenClaw: 好的！请告诉我：
   1️⃣ 爬取哪些平台？(1-7 或 all)
   2️⃣ 生成几张图？(1-9)
   3️⃣ 辩论几轮？(1-5)
@@ -383,7 +535,7 @@ ClawdBot: 好的！请告诉我：
 
 用户: 全部 + 3张图 + 3轮
 
-ClawdBot: 收到！开始分析，预计需要15分钟...
+OpenClaw: 收到！开始分析，预计需要15分钟...
   🔄 开始多平台数据爬取...
   ✅ 微博爬取完成 (45条)
   ✅ 抖音爬取完成 (32条)
@@ -396,7 +548,7 @@ ClawdBot: 收到！开始分析，预计需要15分钟...
 
 用户: OK，发布吧
 
-ClawdBot: ✅ 发布成功！
+OpenClaw: ✅ 发布成功！
 ```
 
 ### 端口说明
