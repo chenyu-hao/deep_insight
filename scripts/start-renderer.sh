@@ -37,5 +37,9 @@ npm run build
 echo ""
 
 echo -e "${GREEN}启动渲染服务 (端口 3001)...${NC}"
+if [ -z "${TITLE_CARD_STYLE}" ]; then
+    export TITLE_CARD_STYLE=apple
+fi
+echo "Title 卡样式: ${TITLE_CARD_STYLE}"
 echo ""
 exec node server.js

@@ -79,6 +79,47 @@ function drawAppleBackdrop(ctx, {
   drawGridTexture(ctx, textureAlpha, 64);
 }
 
+function drawStudioBackdrop(ctx, {
+  start = '#f6f7fb',
+  end = '#ebeef5',
+  primary = '#0a84ff',
+  secondary = '#8b5cf6',
+  topLight = '#ffffff',
+} = {}) {
+  drawGradientBg(ctx, start, end);
+
+  const wash = ctx.createLinearGradient(0, 0, WIDTH, HEIGHT);
+  wash.addColorStop(0, withAlpha('#ffffff', 0.58));
+  wash.addColorStop(0.42, withAlpha('#ffffff', 0.08));
+  wash.addColorStop(1, withAlpha('#dbe7ff', 0.1));
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  drawAmbientOrbs(ctx, [
+    { x: WIDTH * 0.12, y: 110, r: 380, color: topLight, alpha: 0.65 },
+    { x: WIDTH * 0.82, y: HEIGHT * 0.16, r: 280, color: primary, alpha: 0.12 },
+    { x: WIDTH * 0.18, y: HEIGHT * 0.84, r: 340, color: '#ffffff', alpha: 0.34 },
+    { x: WIDTH * 0.86, y: HEIGHT * 0.86, r: 320, color: secondary, alpha: 0.1 },
+  ]);
+
+  const radial = ctx.createRadialGradient(WIDTH * 0.5, HEIGHT * 0.38, 120, WIDTH * 0.5, HEIGHT * 0.38, HEIGHT * 0.82);
+  radial.addColorStop(0, withAlpha('#ffffff', 0));
+  radial.addColorStop(1, withAlpha('#94a3b8', 0.08));
+  ctx.fillStyle = radial;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.06)';
+  ctx.lineWidth = 1;
+  for (let y = 124; y < HEIGHT; y += 98) {
+    ctx.beginPath();
+    ctx.moveTo(58, y);
+    ctx.lineTo(WIDTH - 58, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawPanel(ctx, x, y, w, h, {
   radius = 28,
   fill = 'rgba(255,255,255,0.72)',
@@ -108,6 +149,64 @@ function drawPanel(ctx, x, y, w, h, {
   }
 }
 
+function drawGlassPanel(ctx, x, y, w, h, {
+  radius = 36,
+  accent = '#dbeafe',
+  fillTop = 'rgba(255,255,255,0.9)',
+  fillBottom = 'rgba(244,247,255,0.68)',
+  stroke = 'rgba(255,255,255,0.92)',
+  shadow = 'rgba(15, 23, 42, 0.07)',
+  shadowBlur = 30,
+  shadowY = 14,
+  lineWidth = 1.2,
+} = {}) {
+  ctx.save();
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = shadowBlur;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = shadowY;
+  const fill = ctx.createLinearGradient(x, y, x, y + h);
+  fill.addColorStop(0, fillTop);
+  fill.addColorStop(0.56, 'rgba(255,255,255,0.76)');
+  fill.addColorStop(1, fillBottom);
+  ctx.fillStyle = fill;
+  roundRect(ctx, x, y, w, h, radius);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = lineWidth;
+  roundRect(ctx, x, y, w, h, radius);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  roundRect(ctx, x, y, w, h, radius);
+  ctx.clip();
+
+  const gloss = ctx.createLinearGradient(x, y, x, y + h * 0.42);
+  gloss.addColorStop(0, 'rgba(255,255,255,0.42)');
+  gloss.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gloss;
+  ctx.fillRect(x, y, w, h * 0.42);
+
+  const tint = ctx.createLinearGradient(x, y + h * 0.58, x + w, y + h);
+  tint.addColorStop(0, withAlpha(accent, 0));
+  tint.addColorStop(1, withAlpha(accent, 0.12));
+  ctx.fillStyle = tint;
+  ctx.fillRect(x, y + h * 0.42, w, h * 0.58);
+
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.36)';
+  ctx.lineWidth = 1;
+  roundRect(ctx, x + 1.5, y + 1.5, w - 3, h - 3, Math.max(10, radius - 2));
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawSectionLabel(ctx, text, x, y, accent = '#0a84ff') {
   const label = String(text || '');
   ctx.save();
@@ -130,6 +229,40 @@ function drawSectionLabel(ctx, text, x, y, accent = '#0a84ff') {
   ctx.textBaseline = 'middle';
   ctx.fillText(label, x + 16, tagY + tagH / 2 + 1);
   ctx.restore();
+}
+
+function drawFloatingLabel(ctx, text, x, y, {
+  accent = '#0a84ff',
+  fillAlpha = 0.1,
+  strokeAlpha = 0.18,
+  radius = 20,
+  height = 40,
+  paddingX = 16,
+} = {}) {
+  const label = String(text || '');
+  ctx.save();
+  ctx.font = `600 22px ${FONT_FAMILY}`;
+  const width = Math.max(110, ctx.measureText(label).width + paddingX * 2);
+
+  const fill = ctx.createLinearGradient(x, y, x, y + height);
+  fill.addColorStop(0, withAlpha('#ffffff', 0.76));
+  fill.addColorStop(1, withAlpha(accent, fillAlpha));
+  ctx.fillStyle = fill;
+  roundRect(ctx, x, y, width, height, radius);
+  ctx.fill();
+
+  ctx.strokeStyle = withAlpha(accent, strokeAlpha);
+  ctx.lineWidth = 1;
+  roundRect(ctx, x, y, width, height, radius);
+  ctx.stroke();
+
+  ctx.fillStyle = withAlpha(accent, 0.92);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + paddingX, y + height / 2 + 1);
+  ctx.restore();
+
+  return width;
 }
 
 function drawStatChip(ctx, {
@@ -239,6 +372,99 @@ function drawHeader(ctx, {
   return headerY + headerH;
 }
 
+function drawShowcaseHeader(ctx, {
+  emoji,
+  title,
+  kicker = 'GLOBAL INSIGHT',
+  accent = '#0a84ff',
+  glow = '#dbeafe',
+  textColor = '#0f172a',
+  iconRenderer = null,
+} = {}) {
+  const panelX = 48;
+  const panelY = 52;
+  const panelW = WIDTH - 96;
+  const panelH = 184;
+
+  drawGlassPanel(ctx, panelX, panelY, panelW, panelH, {
+    radius: 42,
+    accent: glow,
+    fillTop: 'rgba(255,255,255,0.94)',
+    fillBottom: 'rgba(244,247,255,0.76)',
+    shadow: 'rgba(15, 23, 42, 0.06)',
+    shadowBlur: 28,
+    shadowY: 10,
+  });
+
+  const chipX = panelX + 36;
+  const chipY = panelY + 34;
+  const chipSize = 112;
+  const chip = ctx.createLinearGradient(chipX, chipY, chipX + chipSize, chipY + chipSize);
+  chip.addColorStop(0, withAlpha('#ffffff', 0.92));
+  chip.addColorStop(1, withAlpha(glow, 0.72));
+  ctx.fillStyle = chip;
+  roundRect(ctx, chipX, chipY, chipSize, chipSize, 32);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = 1;
+  roundRect(ctx, chipX, chipY, chipSize, chipSize, 32);
+  ctx.stroke();
+
+  ctx.save();
+  const chipGloss = ctx.createLinearGradient(chipX, chipY, chipX, chipY + chipSize * 0.7);
+  chipGloss.addColorStop(0, 'rgba(255,255,255,0.42)');
+  chipGloss.addColorStop(1, 'rgba(255,255,255,0)');
+  roundRect(ctx, chipX, chipY, chipSize, chipSize, 32);
+  ctx.clip();
+  ctx.fillStyle = chipGloss;
+  ctx.fillRect(chipX, chipY, chipSize, chipSize * 0.72);
+  ctx.restore();
+
+  if (typeof iconRenderer === 'function') {
+    iconRenderer(ctx, {
+      x: chipX,
+      y: chipY,
+      size: chipSize,
+      accent,
+      glow,
+    });
+  } else {
+    ctx.font = `58px ${EMOJI_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji || '📄', chipX + chipSize / 2, chipY + chipSize / 2 + 1);
+  }
+
+  const titleX = chipX + chipSize + 36;
+  const kickerY = panelY + 66;
+
+  ctx.fillStyle = 'rgba(100, 116, 139, 0.88)';
+  ctx.font = `600 18px ${FONT_FAMILY}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(String(kicker || '').toUpperCase(), titleX, kickerY);
+
+  ctx.fillStyle = withAlpha(accent, 0.18);
+  roundRect(ctx, titleX, kickerY + 14, 114, 6, 999);
+  ctx.fill();
+
+  const maxTitleW = panelW - (titleX - panelX) - 46;
+  const text = String(title || '');
+  let fontSize = 72;
+  while (fontSize >= 50) {
+    ctx.font = `700 ${fontSize}px ${FONT_FAMILY}`;
+    if (ctx.measureText(text).width <= maxTitleW) break;
+    fontSize -= 2;
+  }
+
+  ctx.fillStyle = textColor;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, titleX, panelY + 118);
+
+  return panelY + panelH;
+}
+
 function drawWatermark(ctx, note) {
   ctx.fillStyle = 'rgba(100, 116, 139, 0.74)';
   ctx.font = `21px ${FONT_FAMILY}`;
@@ -322,9 +548,13 @@ export {
   drawAmbientOrbs,
   drawGridTexture,
   drawAppleBackdrop,
+  drawStudioBackdrop,
   drawHeader,
+  drawShowcaseHeader,
   drawPanel,
+  drawGlassPanel,
   drawSectionLabel,
+  drawFloatingLabel,
   drawStatChip,
   drawWatermark,
   wrapText,

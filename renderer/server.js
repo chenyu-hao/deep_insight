@@ -26,6 +26,7 @@ const RENDER_APP_URL = process.env.RENDER_APP_URL || `http://127.0.0.1:${PORT}`;
 const RENDER_ROUTE = '/render.html';
 const PAGE_TIMEOUT = 30_000;
 const RENDER_TIMEOUT = 20_000;
+const TITLE_CARD_STYLE = process.env.TITLE_CARD_STYLE || 'apple';
 
 // ── Browser lifecycle ──────────────────────────────────────────────
 let browser = null;
@@ -45,6 +46,11 @@ async function initBrowser() {
 
 async function getReadyPage() {
   const page = await browserContext.newPage();
+  await page.addInitScript((config) => {
+    window.__CARD_RENDERER_CONFIG__ = config;
+  }, {
+    titleStyle: configOrDefault(TITLE_CARD_STYLE),
+  });
   await page.goto(`${RENDER_APP_URL}${RENDER_ROUTE}`, {
     waitUntil: 'networkidle',
     timeout: PAGE_TIMEOUT,
@@ -53,6 +59,11 @@ async function getReadyPage() {
     timeout: PAGE_TIMEOUT,
   });
   return page;
+}
+
+function configOrDefault(style) {
+  const normalized = String(style || '').trim().toLowerCase();
+  return normalized === 'legacy' ? 'legacy' : 'apple';
 }
 
 // ── Express app ────────────────────────────────────────────────────

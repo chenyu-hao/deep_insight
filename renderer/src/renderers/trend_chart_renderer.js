@@ -5,8 +5,8 @@
  */
 import {
   WIDTH, FONT_FAMILY,
-  createCard, drawAppleBackdrop, drawAmbientOrbs,
-  drawHeader, drawPanel, drawSectionLabel, drawWatermark, toPng,
+  createCard, drawStudioBackdrop, drawShowcaseHeader, drawGlassPanel,
+  drawFloatingLabel, drawWatermark, withAlpha, toPng,
 } from './base.js';
 
 const ACCENT = '#0a84ff';
@@ -18,13 +18,115 @@ function normalizeCurve(curve) {
     .filter((v) => Number.isFinite(v))
     .map((v) => Math.max(0, Math.min(100, v)));
   if (safe.length >= 2) return safe.slice(0, 10);
-  return [40, 55, 70, 80, 90, 95, 92];
+  return [48, 58, 68, 96, 95, 93, 92];
 }
 
 function stageColor(stage) {
   if (stage === '爆发期') return '#30d158';
   if (stage === '回落期') return '#ff9f0a';
   return ACCENT;
+}
+
+function stageDescription(stage) {
+  if (stage === '爆发期') return '信号快速抬升';
+  if (stage === '回落期') return '热度开始降温';
+  return '仍在外扩传播';
+}
+
+function drawSmoothPath(ctx, points) {
+  if (!points.length) return;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const midX = (points[i].x + points[i + 1].x) / 2;
+    const midY = (points[i].y + points[i + 1].y) / 2;
+    ctx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
+  }
+  const last = points[points.length - 1];
+  ctx.quadraticCurveTo(last.x, last.y, last.x, last.y);
+}
+
+function drawAreaPath(ctx, points, baseline) {
+  if (!points.length) return;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, baseline);
+  ctx.lineTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const midX = (points[i].x + points[i + 1].x) / 2;
+    const midY = (points[i].y + points[i + 1].y) / 2;
+    ctx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
+  }
+  const last = points[points.length - 1];
+  ctx.quadraticCurveTo(last.x, last.y, last.x, last.y);
+  ctx.lineTo(last.x, baseline);
+  ctx.closePath();
+}
+
+function drawLegendChip(ctx, x, y, item) {
+  drawGlassPanel(ctx, x, y, 286, 76, {
+    radius: 24,
+    accent: item.color,
+    fillTop: 'rgba(255,255,255,0.88)',
+    fillBottom: 'rgba(248,250,255,0.72)',
+    shadow: 'rgba(15,23,42,0.035)',
+    shadowBlur: 12,
+    shadowY: 5,
+  });
+
+  ctx.fillStyle = item.color;
+  ctx.beginPath();
+  ctx.arc(x + 28, y + 38, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = `640 26px ${FONT_FAMILY}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(item.label, x + 46, y + 34);
+
+  ctx.fillStyle = 'rgba(100,116,139,0.9)';
+  ctx.font = `500 22px ${FONT_FAMILY}`;
+  ctx.fillText(item.desc, x + 46, y + 60);
+}
+
+function drawTrendGlyph(ctx, { x, y, size, accent }) {
+  const points = [
+    { x: x + 22, y: y + size - 28 },
+    { x: x + 42, y: y + size - 48 },
+    { x: x + 58, y: y + size - 40 },
+    { x: x + 82, y: y + 30 },
+  ];
+
+  ctx.save();
+  ctx.strokeStyle = withAlpha(accent, 0.24);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(x + 18, y + 18);
+  ctx.lineTo(x + 18, y + size - 18);
+  ctx.lineTo(x + size - 18, y + size - 18);
+  ctx.stroke();
+
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  points.forEach((point, idx) => {
+    if (idx === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  });
+  ctx.stroke();
+
+  points.forEach((point, idx) => {
+    ctx.fillStyle = idx === points.length - 1 ? accent : '#ffffff';
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, idx === points.length - 1 ? 6 : 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+  ctx.restore();
 }
 
 export default function renderTrendChart(data) {
@@ -35,173 +137,215 @@ export default function renderTrendChart(data) {
   const growth = Number((data && data.growth) ?? 50);
   const curve = normalizeCurve(data && data.curve);
   const labels = curve.map((_, i) => `T${i + 1}`);
+  const growthColor = growth > 100 ? '#30d158' : growth > 0 ? ACCENT : '#ff453a';
+  const growthText = growth > 0 ? `+${growth}%` : `${growth}%`;
+  const peak = Math.max(...curve);
+  const peakIndex = curve.indexOf(peak);
 
-  drawAppleBackdrop(ctx, {
-    start: '#f8f9fc',
-    end: '#edf1f7',
-    topLight: '#ffffff',
-    bottomTint: '#dbeafe',
-    textureAlpha: 0.012,
+  drawStudioBackdrop(ctx, {
+    start: '#f7f8fb',
+    end: '#eceff5',
+    primary: '#8fd0ff',
+    secondary: '#9eafff',
   });
-  drawAmbientOrbs(ctx, [
-    { x: 220, y: 260, r: 240, color: '#dbeafe', alpha: 0.2 },
-    { x: 910, y: 1180, r: 320, color: '#c7d2fe', alpha: 0.14 },
-  ]);
 
-  const headerBottom = drawHeader(ctx, {
-    emoji: '📈',
+  const headerBottom = drawShowcaseHeader(ctx, {
     title: '热度趋势分析',
-    bgColor: '#dbeafe',
-    textColor: '#0f172a',
+    kicker: 'Trend Intelligence',
+    accent: ACCENT,
+    glow: '#d8ecff',
+    iconRenderer: drawTrendGlyph,
   });
 
-  const shellY = headerBottom + 44;
-  drawPanel(ctx, 56, shellY, WIDTH - 112, 738, {
-    radius: 34,
-    fill: 'rgba(255,255,255,0.66)',
-    stroke: 'rgba(255,255,255,0.88)',
+  const shellY = headerBottom + 34;
+  const shellH = 1018;
+  drawGlassPanel(ctx, 48, shellY, WIDTH - 96, shellH, {
+    radius: 40,
+    accent: '#d9ecff',
+    fillTop: 'rgba(255,255,255,0.9)',
+    fillBottom: 'rgba(243,247,255,0.74)',
     shadow: 'rgba(15, 23, 42, 0.06)',
-    shadowBlur: 24,
+    shadowBlur: 26,
     shadowY: 10,
   });
-  drawSectionLabel(ctx, '热度曲线', 100, shellY + 34, ACCENT);
 
-  const chartX = 120;
-  const chartY = shellY + 118;
-  const chartW = 840;
-  const chartH = 520;
-  const stepX = chartW / (curve.length - 1);
-
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.24)';
-  ctx.lineWidth = 1.5;
-  for (let pct = 0; pct <= 100; pct += 20) {
-    const y = chartY + chartH - (pct / 100) * chartH;
-    ctx.beginPath();
-    ctx.moveTo(chartX, y);
-    ctx.lineTo(chartX + chartW, y);
-    ctx.stroke();
-
-    ctx.fillStyle = 'rgba(100,116,139,0.9)';
-    ctx.font = `520 23px ${FONT_FAMILY}`;
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`${pct}%`, chartX - 12, y);
-  }
-
-  labels.forEach((label, i) => {
-    const x = chartX + i * stepX;
-    ctx.fillStyle = '#334155';
-    ctx.font = `620 23px ${FONT_FAMILY}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(label, x, chartY + chartH + 14);
+  drawFloatingLabel(ctx, '热度信号', 88, shellY + 34, {
+    accent: ACCENT,
+    fillAlpha: 0.08,
+    strokeAlpha: 0.14,
+    height: 42,
   });
 
-  const areaGradient = ctx.createLinearGradient(0, chartY, 0, chartY + chartH);
-  areaGradient.addColorStop(0, 'rgba(10,132,255,0.28)');
-  areaGradient.addColorStop(1, 'rgba(10,132,255,0.03)');
+  ctx.fillStyle = 'rgba(100,116,139,0.88)';
+  ctx.font = `520 21px ${FONT_FAMILY}`;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(`PEAK ${peak}`, WIDTH - 92, shellY + 68);
 
-  ctx.beginPath();
-  curve.forEach((value, i) => {
-    const x = chartX + i * stepX;
-    const y = chartY + chartH - (value / 100) * chartH;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.lineTo(chartX + (curve.length - 1) * stepX, chartY + chartH);
-  ctx.lineTo(chartX, chartY + chartH);
-  ctx.closePath();
-  ctx.fillStyle = areaGradient;
-  ctx.fill();
-
-  ctx.beginPath();
-  curve.forEach((value, i) => {
-    const x = chartX + i * stepX;
-    const y = chartY + chartH - (value / 100) * chartH;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.strokeStyle = ACCENT;
-  ctx.lineWidth = 4;
-  ctx.stroke();
-
-  curve.forEach((value, i) => {
-    const x = chartX + i * stepX;
-    const y = chartY + chartH - (value / 100) * chartH;
-    ctx.beginPath();
-    ctx.arc(x, y, 7, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.strokeStyle = ACCENT;
-    ctx.lineWidth = 3;
-    ctx.stroke();
-  });
-
-  const stageY = shellY + 768;
-  drawPanel(ctx, 80, stageY, WIDTH - 160, 124, {
-    radius: 24,
-    fill: 'rgba(255,255,255,0.6)',
-    stroke: 'rgba(255,255,255,0.86)',
-    shadow: 'rgba(15, 23, 42, 0.04)',
+  const chartX = 86;
+  const chartY = shellY + 106;
+  const chartW = WIDTH - 172;
+  const chartH = 560;
+  drawGlassPanel(ctx, chartX, chartY, chartW, chartH, {
+    radius: 32,
+    accent: '#d6e9ff',
+    fillTop: 'rgba(252,254,255,0.9)',
+    fillBottom: 'rgba(240,246,255,0.78)',
+    shadow: 'rgba(15,23,42,0.03)',
     shadowBlur: 14,
     shadowY: 6,
   });
 
-  const currentColor = stageColor(stage);
-  ctx.fillStyle = currentColor;
+  ctx.save();
   ctx.beginPath();
-  ctx.arc(132, stageY + 62, 13, 0, Math.PI * 2);
+  ctx.roundRect(chartX, chartY, chartW, chartH, 32);
+  ctx.clip();
+  const chartGlow = ctx.createRadialGradient(chartX + chartW * 0.64, chartY + 80, 40, chartX + chartW * 0.64, chartY + 80, 360);
+  chartGlow.addColorStop(0, withAlpha(ACCENT, 0.14));
+  chartGlow.addColorStop(1, withAlpha(ACCENT, 0));
+  ctx.fillStyle = chartGlow;
+  ctx.fillRect(chartX, chartY, chartW, chartH);
+  ctx.restore();
+
+  const plotX = chartX + 56;
+  const plotY = chartY + 76;
+  const plotW = chartW - 96;
+  const plotH = 400;
+  const baseline = plotY + plotH;
+  const stepX = plotW / (curve.length - 1);
+
+  for (let pct = 0; pct <= 100; pct += 20) {
+    const y = baseline - (pct / 100) * plotH;
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.18)';
+    ctx.lineWidth = pct === 100 ? 1.4 : 1;
+    ctx.beginPath();
+    ctx.moveTo(plotX, y);
+    ctx.lineTo(plotX + plotW, y);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(100,116,139,0.8)';
+    ctx.font = `520 20px ${FONT_FAMILY}`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${pct}%`, plotX - 14, y);
+  }
+
+  const points = curve.map((value, i) => ({
+    x: plotX + i * stepX,
+    y: baseline - (value / 100) * plotH,
+    value,
+  }));
+
+  labels.forEach((label, i) => {
+    ctx.fillStyle = 'rgba(51,65,85,0.92)';
+    ctx.font = `620 21px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(label, plotX + i * stepX, baseline + 18);
+  });
+
+  drawAreaPath(ctx, points, baseline);
+  const area = ctx.createLinearGradient(0, plotY, 0, baseline);
+  area.addColorStop(0, 'rgba(10,132,255,0.24)');
+  area.addColorStop(0.72, 'rgba(10,132,255,0.08)');
+  area.addColorStop(1, 'rgba(10,132,255,0.02)');
+  ctx.fillStyle = area;
   ctx.fill();
 
-  ctx.fillStyle = '#475569';
-  ctx.font = `560 34px ${FONT_FAMILY}`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('当前阶段', 160, stageY + 44);
+  drawSmoothPath(ctx, points);
+  const stroke = ctx.createLinearGradient(plotX, plotY, plotX + plotW, baseline);
+  stroke.addColorStop(0, '#55b5ff');
+  stroke.addColorStop(0.42, ACCENT);
+  stroke.addColorStop(1, '#246bff');
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
 
-  ctx.fillStyle = '#0f172a';
-  ctx.font = `700 44px ${FONT_FAMILY}`;
-  ctx.fillText(stage, 160, stageY + 84);
+  points.forEach((point, i) => {
+    if (i === peakIndex) {
+      const halo = ctx.createRadialGradient(point.x, point.y, 10, point.x, point.y, 42);
+      halo.addColorStop(0, 'rgba(10,132,255,0.24)');
+      halo.addColorStop(1, 'rgba(10,132,255,0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 42, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-  const growthLabel = Number.isFinite(growth) ? growth : 0;
-  const growthColor = growthLabel > 100 ? '#30d158' : growthLabel > 0 ? ACCENT : '#ff453a';
-  const growthText = growthLabel > 0 ? `+${growthLabel}%` : `${growthLabel}%`;
-
-  ctx.fillStyle = '#64748b';
-  ctx.font = `560 32px ${FONT_FAMILY}`;
-  ctx.textAlign = 'right';
-  ctx.fillText('增速', WIDTH - 250, stageY + 48);
-
-  ctx.fillStyle = growthColor;
-  ctx.font = `700 46px ${FONT_FAMILY}`;
-  ctx.fillText(growthText, WIDTH - 116, stageY + 86);
-
-  const legendY = stageY + 152;
-  const stageItems = [
-    { label: '爆发期', desc: '快速上升', color: '#30d158' },
-    { label: '扩散期', desc: '持续增长', color: ACCENT },
-    { label: '回落期', desc: '热度降温', color: '#ff9f0a' },
-  ];
-  const colWidth = (WIDTH - 160) / 3;
-  stageItems.forEach((item, i) => {
-    const x = 82 + i * colWidth;
-    ctx.fillStyle = item.color;
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(x + 10, legendY + 8, 8, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, i === peakIndex ? 9 : 7, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#334155';
-    ctx.font = `620 29px ${FONT_FAMILY}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(item.label, x + 26, legendY + 16);
+    ctx.strokeStyle = i === peakIndex ? '#246bff' : ACCENT;
+    ctx.lineWidth = i === peakIndex ? 4 : 3;
+    ctx.stroke();
+  });
 
-    ctx.fillStyle = '#64748b';
-    ctx.font = `500 24px ${FONT_FAMILY}`;
-    ctx.fillText(item.desc, x + 26, legendY + 52);
+  const metricY = chartY + chartH + 30;
+  const leftW = 454;
+  const rightW = WIDTH - 96 - 56 - leftW - 28;
+
+  drawGlassPanel(ctx, 88, metricY, leftW, 146, {
+    radius: 30,
+    accent: stageColor(stage),
+    fillTop: 'rgba(255,255,255,0.88)',
+    fillBottom: 'rgba(249,250,255,0.72)',
+    shadow: 'rgba(15,23,42,0.04)',
+    shadowBlur: 14,
+    shadowY: 6,
+  });
+
+  ctx.fillStyle = stageColor(stage);
+  ctx.beginPath();
+  ctx.arc(126, metricY + 46, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(100,116,139,0.9)';
+  ctx.font = `560 24px ${FONT_FAMILY}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('当前阶段', 148, metricY + 54);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = `700 46px ${FONT_FAMILY}`;
+  ctx.fillText(stage, 120, metricY + 110);
+
+  ctx.fillStyle = 'rgba(100,116,139,0.92)';
+  ctx.font = `500 24px ${FONT_FAMILY}`;
+  ctx.fillText(stageDescription(stage), 282, metricY + 110);
+
+  drawGlassPanel(ctx, 88 + leftW + 28, metricY, rightW, 146, {
+    radius: 30,
+    accent: ACCENT,
+    fillTop: 'rgba(255,255,255,0.88)',
+    fillBottom: 'rgba(245,249,255,0.72)',
+    shadow: 'rgba(15,23,42,0.04)',
+    shadowBlur: 14,
+    shadowY: 6,
+  });
+
+  ctx.fillStyle = 'rgba(100,116,139,0.9)';
+  ctx.font = `560 24px ${FONT_FAMILY}`;
+  ctx.textAlign = 'left';
+  ctx.fillText('趋势增速', 88 + leftW + 60, metricY + 54);
+
+  ctx.fillStyle = growthColor;
+  ctx.font = `700 64px ${FONT_FAMILY}`;
+  ctx.fillText(growthText, 88 + leftW + 60, metricY + 118);
+
+  const legendY = metricY + 174;
+  const stageItems = [
+    { label: '爆发期', desc: '快速抬升', color: '#30d158' },
+    { label: '扩散期', desc: '持续外扩', color: ACCENT },
+    { label: '回落期', desc: '逐步降温', color: '#ff9f0a' },
+  ];
+  stageItems.forEach((item, i) => {
+    drawLegendChip(ctx, 88 + i * 302, legendY, item);
   });
 
   drawWatermark(ctx, '* 基于语义分析与时序热度推演模型');
-
   return toPng(canvas);
 }
