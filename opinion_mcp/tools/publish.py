@@ -11,13 +11,14 @@ MCP 发布工具
 Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5
 """
 
+import os
 import sys
 from typing import Any, Dict, List, Optional
 from loguru import logger
 
 from opinion_mcp.services.backend_client import backend_client
 from opinion_mcp.services.job_manager import job_manager
-from opinion_mcp.utils.url_validator import filter_valid_urls, download_images
+from opinion_mcp.utils.url_validator import download_images
 
 
 # ============================================================
@@ -65,39 +66,60 @@ async def collect_images_for_publish(
     """
     # 收集图片 URL
     all_images: List[str] = []
+    # 已经是本地文件的路径（由 generate_topic_cards 写入），无需下载
+    local_card_paths: List[str] = []
     
     if mode == "ai_and_cards":
         # 阶段 B: 先添加数据卡片，再添加 AI 配图
         if result.cards:
             cards = result.cards
-            if cards.title_card:
-                all_images.append(cards.title_card)
-            if cards.debate_timeline:
-                all_images.append(cards.debate_timeline)
-            if cards.trend_analysis:
-                all_images.append(cards.trend_analysis)
-            if cards.platform_radar:
-                all_images.append(cards.platform_radar)
+            for card_path in [cards.title_card, cards.debate_timeline, cards.trend_analysis, cards.platform_radar]:
+                if card_path:
+                    if os.path.isfile(card_path):
+                        local_card_paths.append(card_path)
+                    else:
+                        all_images.append(card_path)
     
     # 添加 AI 生成图片
     if result.ai_images:
         all_images.extend(result.ai_images)
     
-    if not all_images:
+    if not all_images and not local_card_paths:
         return [], []
     
-    # 下载图片到本地（火山引擎 URL 有时效性）
-    logger.info(f"[collect_images] 开始下载 {len(all_images)} 张图片到本地...")
-    local_paths, download_results = await download_images(
-        all_images,
-        timeout=30.0,
-        concurrency=3,
+    # 下载远程图片到本地（火山引擎 URL 有时效性）
+    local_paths: List[str] = []
+    failed_images: List[str] = []
+    
+    if all_images:
+        logger.info(f"[collect_images] 开始下载 {len(all_images)} 张远程图片到本地...")
+        downloaded_paths, download_results = await download_images(
+            all_images,
+            timeout=30.0,
+            concurrency=3,
+        )
+        local_paths.extend(downloaded_paths)
+        failed_images = [r.original_url for r in download_results if not r.success]
+    
+    # 本地卡片路径放在最前面
+    final_paths = local_card_paths + local_paths
+    
+    return final_paths, failed_images
+
+
+def _has_card_assets(result: Any) -> bool:
+    cards = getattr(result, "cards", None)
+    if not cards:
+        return False
+    return any(
+        bool(path)
+        for path in [
+            getattr(cards, "title_card", None),
+            getattr(cards, "debate_timeline", None),
+            getattr(cards, "trend_analysis", None),
+            getattr(cards, "platform_radar", None),
+        ]
     )
-    
-    # 收集失败的图片
-    failed_images = [r.original_url for r in download_results if not r.success]
-    
-    return local_paths, failed_images
 
 
 # ============================================================
@@ -270,11 +292,24 @@ async def publish_to_xhs(
     
     # 收集并验证图片
     valid_images, failed_images = await collect_images_for_publish(result, publish_mode)
+    fallback_used = False
+
+    # 兜底: ai_only + 无 AI 图时，尝试回退到卡片发布，避免 image_count=0 无法发布
+    if not valid_images and publish_mode == "ai_only" and _has_card_assets(result):
+        logger.warning(
+            "[publish_to_xhs] ai_only 模式下无可用 AI 图片，自动回退到 ai_and_cards 以继续发布"
+        )
+        valid_images, failed_images = await collect_images_for_publish(result, "ai_and_cards")
+        if valid_images:
+            publish_mode = "ai_and_cards"
+            fallback_used = True
     
     if not valid_images:
         error_msg = "没有可发布的图片"
         if failed_images:
             error_msg += f"，{len(failed_images)} 个图片验证失败"
+        if publish_mode == "ai_only":
+            error_msg += "（当前模式为 ai_only，且未检测到可用 AI 图片）"
         return {
             "success": False,
             "error": error_msg,
@@ -330,10 +365,11 @@ async def publish_to_xhs(
             "success": True,
             "job_id": job_id,
             "note_url": note_url,
-            "message": "发布成功",
+            "message": "发布成功（已自动回退到卡片发布）" if fallback_used else "发布成功",
             "images_used": len(valid_images),
             "failed_images": failed_images,
             "publish_mode": publish_mode,
+            "fallback_used": fallback_used,
         }
         
     except Exception as e:

@@ -7,6 +7,7 @@ MCP 发布验证工具
 Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5
 """
 
+import os
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, asdict
 import httpx
@@ -186,53 +187,60 @@ async def validate_publish(
         ))
     
     image_urls: List[str] = []
+    local_files: List[str] = []
     
-    # 收集数据卡片图片
+    # 收集数据卡片图片（可能是 URL 也可能是本地路径）
     if result.cards:
         cards = result.cards
-        if cards.title_card:
-            image_urls.append(cards.title_card)
-        if cards.debate_timeline:
-            image_urls.append(cards.debate_timeline)
-        if cards.trend_analysis:
-            image_urls.append(cards.trend_analysis)
-        if cards.platform_radar:
-            image_urls.append(cards.platform_radar)
+        for card_path in [cards.title_card, cards.debate_timeline, cards.trend_analysis, cards.platform_radar]:
+            if card_path:
+                if os.path.isfile(card_path):
+                    local_files.append(card_path)
+                else:
+                    image_urls.append(card_path)
     
     # 收集 AI 生成图片
     if result.ai_images:
         image_urls.extend(result.ai_images)
     
-    if not image_urls:
+    if not image_urls and not local_files:
         return asdict(ValidatePublishResult(
             xhs_service_ok=xhs_ok,
             images_valid=0,
             images_invalid=0,
             image_details=[],
             can_publish=False,
-            suggestions=suggestions + ["没有可发布的图片，请先生成 AI 配图"],
+            suggestions=suggestions + ["没有可发布的图片，请先生成 AI 配图或运行 generate_topic_cards"],
             job_id=job_id,
             error="没有图片",
         ))
     
-    # 5. 验证所有图片 URL
-    logger.info(f"[validate_publish] 验证 {len(image_urls)} 个图片 URL")
-    validation_results = await validate_urls(image_urls, timeout=10.0, concurrency=5)
+    # 5. 验证远程图片 URL
+    image_details: List[Dict[str, Any]] = []
+    valid_count = len(local_files)  # 本地文件视为有效
+    invalid_count = 0
     
-    # 统计结果
-    valid_count = sum(1 for r in validation_results if r.valid)
-    invalid_count = len(validation_results) - valid_count
+    # 本地文件直接标记为有效
+    for lf in local_files:
+        image_details.append({"url": lf, "valid": True, "status_code": None, "error": None})
     
-    # 转换为字典格式
-    image_details = convert_validation_results(validation_results)
-    
-    # 添加无效图片的建议
-    if invalid_count > 0:
-        invalid_urls = [r.url for r in validation_results if not r.valid]
-        suggestions.append(f"{invalid_count} 个图片 URL 无效，可能需要重新生成")
-        for r in validation_results:
-            if not r.valid:
-                logger.warning(f"[validate_publish] 无效图片: {r.url} - {r.error}")
+    # 远程 URL 需要 HTTP 验证
+    if image_urls:
+        logger.info(f"[validate_publish] 验证 {len(image_urls)} 个远程图片 URL")
+        validation_results = await validate_urls(image_urls, timeout=10.0, concurrency=5)
+        
+        remote_valid = sum(1 for r in validation_results if r.valid)
+        remote_invalid = len(validation_results) - remote_valid
+        valid_count += remote_valid
+        invalid_count += remote_invalid
+        
+        image_details.extend(convert_validation_results(validation_results))
+        
+        if remote_invalid > 0:
+            suggestions.append(f"{remote_invalid} 个远程图片 URL 无效，可能需要重新生成")
+            for r in validation_results:
+                if not r.valid:
+                    logger.warning(f"[validate_publish] 无效图片: {r.url} - {r.error}")
     
     # 6. 判断是否可以发布
     can_publish = xhs_ok and valid_count > 0
