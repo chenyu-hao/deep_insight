@@ -79,7 +79,7 @@ def test_llm_calls(provider_keys: List[str], dry_run: bool) -> List[Tuple[str, b
 
     # Import backend modules only when needed.
     from langchain_core.messages import HumanMessage
-    from app.config import settings
+    from app.core.config import settings
     from app.llm import get_llm
 
     mapping = {

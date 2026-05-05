@@ -7,7 +7,7 @@ import sys
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
-from app.services.xiaohongshu_publisher import xiaohongshu_publisher
+from app.services.social.xiaohongshu_publisher import xiaohongshu_publisher
 
 # --- 配置测试数据 ---
 # 这里填入用户刚才报错的标题，我们来复现一下

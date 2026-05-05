@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.services.user_settings import (
+from app.services.settings.user_settings import (
     get_image_generation_count,
     update_user_settings,
     get_volcengine_settings,

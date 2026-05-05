@@ -36,7 +36,7 @@ def get_image_publish_mode() -> str:
     try:
         # 动态导入以支持热加载
         sys.path.insert(0, ".")
-        from app.config import Config
+        from app.core.config import Config
         return Config.get_image_publish_mode()
     except ImportError:
         logger.warning("[publish] 无法导入 app.config，使用默认模式 ai_only")

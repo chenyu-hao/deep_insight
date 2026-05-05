@@ -60,15 +60,20 @@ def get_video_url_arr(note_item: Dict) -> List:
     if note_item.get('type') != 'video':
         return []
 
+    video_data = note_item.get('video')
+    if not video_data or not isinstance(video_data, dict):
+        return []
+
     videoArr = []
-    originVideoKey = note_item.get('video').get('consumer').get('origin_video_key')
-    if originVideoKey == '':
-        originVideoKey = note_item.get('video').get('consumer').get('originVideoKey')
+    consumer = video_data.get('consumer') or {}
+    originVideoKey = consumer.get('origin_video_key', '') or consumer.get('originVideoKey', '') or ''
     # Fallback with watermark
     if originVideoKey == '':
-        videos = note_item.get('video').get('media').get('stream').get('h264')
-        if type(videos).__name__ == 'list':
-            videoArr = [v.get('master_url') for v in videos]
+        media = video_data.get('media') or {}
+        stream = media.get('stream') or {}
+        videos = stream.get('h264')
+        if isinstance(videos, list):
+            videoArr = [v.get('master_url') for v in videos if v and isinstance(v, dict)]
     else:
         videoArr = [f"http://sns-video-bd.xhscdn.com/{originVideoKey}"]
 

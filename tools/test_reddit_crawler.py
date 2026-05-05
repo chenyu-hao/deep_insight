@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from app.services.foreign_news_crawler_service import foreign_crawler_service
+from app.services.crawler.foreign_news_crawler_service import foreign_crawler_service
 
 
 def _required_env_missing() -> list[str]:

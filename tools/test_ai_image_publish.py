@@ -26,8 +26,8 @@ async def test_image_generator():
     print("=" * 60)
     
     try:
-        from app.services.image_generator import image_generator_service
-        from app.services.user_settings import get_image_generation_count
+        from app.services.image.image_generator import image_generator_service
+        from app.services.settings.user_settings import get_image_generation_count
         
         # 检查配置
         image_count = get_image_generation_count()
@@ -151,7 +151,7 @@ async def test_publish_config():
     print("=" * 60)
     
     try:
-        from app.config import Config
+        from app.core.config import Config
         
         mode = Config.get_image_publish_mode()
         print(f"✅ 当前发布模式: {mode}")

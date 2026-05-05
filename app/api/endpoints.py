@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from typing import Optional, List, Dict, Any
 from loguru import logger
-from app.schemas import (
+from app.models.schemas import (
     NewsRequest, AgentState, ConfigResponse, ConfigUpdateRequest,
     OutputFileListResponse, OutputFileInfo, OutputFileContentResponse,
     WorkflowStatusResponse, LLMProviderConfig, CrawlerLimit,
@@ -16,18 +16,18 @@ from app.schemas import (
     UserSettingsUpdateRequest,
     XhsPublishRequest,
 )
-from app.services.workflow import app_graph
-from app.services.workflow_status import workflow_status
-from app.services.tophub_collector import tophub_collector
-from app.services.hn_hot_collector import hn_hot_collector
-from app.services.hot_news_scheduler import hot_news_scheduler
-from app.services.hot_news_cache import hot_news_cache
-from app.services.hotnews_alignment import cluster_items, clusters_to_api, make_raw_item
-from app.services.hotnews_signals import apply_history_signals, make_history_snapshot
-from app.services.hotnews_history import HotNewsHistoryConfig, HotNewsHistoryStore
-from app.services.hotnews_interpreter import interpret_hot_topic
-from app.config import settings
-from app.services.user_settings import load_user_settings, update_user_settings
+from app.agents.deep_insight_workflow.graph import app_graph
+from app.agents.deep_insight_workflow.status import workflow_status
+from app.services.hotnews.tophub_collector import tophub_collector
+from app.services.hotnews.hn_hot_collector import hn_hot_collector
+from app.services.hotnews.hot_news_scheduler import hot_news_scheduler
+from app.services.hotnews.hot_news_cache import hot_news_cache
+from app.services.hotnews.hotnews_alignment import cluster_items, clusters_to_api, make_raw_item
+from app.services.hotnews.hotnews_signals import apply_history_signals, make_history_snapshot
+from app.services.hotnews.hotnews_history import HotNewsHistoryConfig, HotNewsHistoryStore
+from app.services.hotnews.hotnews_interpreter import interpret_hot_topic
+from app.core.config import settings
+from app.services.settings.user_settings import load_user_settings, update_user_settings
 from pathlib import Path
 from datetime import datetime
 import asyncio
@@ -109,7 +109,7 @@ async def _rebuild_aligned_clusters(*, include_hn: bool, force_refresh: bool) ->
     }
 
     try:
-        from app.services.tophub_collector import TOPHUB_SOURCES as _TOPHUB_SOURCES
+        from app.services.hotnews.tophub_collector import TOPHUB_SOURCES as _TOPHUB_SOURCES
     except Exception:
         _TOPHUB_SOURCES = {}
 
@@ -354,7 +354,7 @@ async def get_config():
     }
     
     # 转换热榜配置格式
-    from app.schemas import HotNewsConfig
+    from app.models.schemas import HotNewsConfig
     hot_news_config = HotNewsConfig(**settings.HOT_NEWS_CONFIG)
     
     return ConfigResponse(
@@ -1127,7 +1127,7 @@ async def run_hot_news_once():
 @router.get("/hot-news/cache-info")
 async def get_cache_info():
     """获取缓存信息"""
-    from app.services.hot_news_cache import hot_news_cache
+    from app.services.hotnews.hot_news_cache import hot_news_cache
     cache_info = hot_news_cache.get_cache_info()
     return cache_info
 
@@ -1136,7 +1136,7 @@ async def get_cache_info():
 async def clear_cache():
     """清除热点新闻缓存"""
     try:
-        from app.services.hot_news_cache import hot_news_cache
+        from app.services.hotnews.hot_news_cache import hot_news_cache
         hot_news_cache.clear_cache()
         return {
             "success": True,
@@ -1149,7 +1149,7 @@ async def clear_cache():
 @router.get("/hot-news/platforms")
 async def get_supported_platforms():
     """获取支持的平台列表"""
-    from app.services.tophub_collector import TOPHUB_SOURCES, PENDING_PLATFORMS
+    from app.services.hotnews.tophub_collector import TOPHUB_SOURCES, PENDING_PLATFORMS
     
     platforms = []
     for source_id, info in TOPHUB_SOURCES.items():
@@ -1264,8 +1264,8 @@ async def validate_model(payload: dict):
 @router.get("/xhs/status")
 async def get_xhs_status():
     """检查小红书 MCP 服务状态和登录状态"""
-    from app.services.xiaohongshu_publisher import xiaohongshu_publisher
-    from app.schemas import XhsStatusResponse
+    from app.services.social.xiaohongshu_publisher import xiaohongshu_publisher
+    from app.models.schemas import XhsStatusResponse
     
     try:
         status = await xiaohongshu_publisher.get_status()
@@ -1292,8 +1292,8 @@ async def publish_to_xhs(request: XhsPublishRequest):
     - content: 正文内容
     - images: 图片列表（本地路径或 HTTP URL）
     """
-    from app.services.xiaohongshu_publisher import xiaohongshu_publisher
-    from app.schemas import XhsPublishRequest, XhsPublishResponse
+    from app.services.social.xiaohongshu_publisher import xiaohongshu_publisher
+    from app.models.schemas import XhsPublishRequest, XhsPublishResponse
     
     if not request.title or not request.content:
         return XhsPublishResponse(

@@ -1,64 +1,65 @@
 import sys
 import asyncio
-import logging
 import warnings
-
-# 过滤 Pydantic 的字段名冲突警告（来自第三方库，不影响功能）
-warnings.filterwarnings("ignore", message="Field name.*shadows an attribute in parent.*", category=UserWarning)
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Force ProactorEventLoop on Windows for Playwright compatibility
-if sys.platform == 'win32':
-    try:
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        logger.info("✅ WindowsProactorEventLoopPolicy applied successfully.")
-    except Exception as e:
-        logger.error(f"❌ Failed to set WindowsProactorEventLoopPolicy: {e}")
-
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-from app.api.endpoints import router
-from app.services.hot_news_scheduler import hot_news_scheduler
 
+from app.core.logger import logger
+from app.api.endpoints import router
+from app.services.hotnews.hot_news_scheduler import hot_news_scheduler
+
+# Filter Pydantic warnings
+warnings.filterwarnings("ignore", message="Field name.*shadows an attribute in parent.*", category=UserWarning)
+
+def initialize_system():
+    """System initialization logic"""
+    # Force ProactorEventLoop on Windows for Playwright compatibility
+    if sys.platform == 'win32':
+        try:
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+            logger.info("✅ WindowsProactorEventLoopPolicy applied successfully.")
+        except Exception as e:
+            logger.error(f"❌ Failed to set WindowsProactorEventLoopPolicy: {e}")
+    
+    logger.info("🚀 System initialized.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理"""
-    # 启动时执行
-    logger.info("🚀 启动热点新闻定时任务...")
-    # 使用配置中的刷新间隔（默认 4 小时）
+    """Application lifecycle management"""
+    logger.info("🚀 Starting hot news scheduler...")
     hot_news_scheduler.start()
     
     yield
     
-    # 关闭时执行
-    logger.info("🛑 停止热点新闻定时任务...")
+    logger.info("🛑 Stopping hot news scheduler...")
     hot_news_scheduler.stop()
 
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application"""
+    initialize_system()
+    
+    app = FastAPI(
+        title="News Opinion Analysis System",
+        lifespan=lifespan
+    )
 
-app = FastAPI(
-    title="News Opinion Analysis System",
-    lifespan=lifespan
-)
+    # CORS configuration
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-# CORS is crucial for Vue frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # Allow all for dev, restrict in prod
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    app.include_router(router, prefix="/api")
+    
+    return app
 
-app.include_router(router, prefix="/api")
+app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
-    # Disable reload to prevent subprocesses from resetting the EventLoopPolicy on Windows
-    # Pass the app instance directly
     logger.info(f"🔒 Current Event Loop Policy: {asyncio.get_event_loop_policy()}")
     uvicorn.run(app, host="0.0.0.0", port=8000, loop="asyncio")
