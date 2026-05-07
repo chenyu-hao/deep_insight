@@ -10,7 +10,7 @@ from contextlib import contextmanager
 import importlib
 
 # Add MediaCrawler to path if needed
-MEDIA_CRAWLER_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "MediaCrawler")
+MEDIA_CRAWLER_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "external", "MediaCrawler")
 if MEDIA_CRAWLER_PATH not in sys.path:
     sys.path.insert(0, MEDIA_CRAWLER_PATH)
 
@@ -277,7 +277,7 @@ class MediaCrawlerService:
                     # Fallback: import from main if MediaCrawler is in path
                     import sys
                     import os
-                    mc_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "MediaCrawler")
+                    mc_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "external", "MediaCrawler")
                     if mc_path not in sys.path:
                         sys.path.insert(0, mc_path)
                     from main import CrawlerFactory

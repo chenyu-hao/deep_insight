@@ -1,0 +1,265 @@
+# GlobalInSight 快速启动指南
+
+> 本指南适用于 macOS、Linux 和 Windows 系统
+
+## 🚀 一键启动（推荐）
+
+### macOS / Linux 用户
+
+**方法 1：双击启动（macOS）**
+1. 在 Finder 中找到项目根目录
+2. 双击 `start.command` 文件
+3. 如果提示"无法打开"，右键点击 → 选择"打开" → 点击"打开"
+4. 按照提示完成环境检查和服务启动
+
+**方法 2：终端启动**
+```bash
+# 在项目根目录执行
+./start.sh
+```
+
+### Windows 用户
+
+**方法 1：双击启动（最简单）**
+1. 在文件资源管理器中找到项目根目录
+2. 双击 `start.bat` 文件
+3. 按照提示完成环境检查和服务启动
+
+**方法 2：命令行启动**
+```cmd
+# 在项目根目录执行
+start.bat
+```
+
+### 首次运行会自动完成
+
+✅ 检查 Python 和 Node.js 环境  
+✅ 创建 Python 虚拟环境  
+✅ 安装所有依赖（Python + Node.js）  
+✅ 下载小红书 MCP 服务  
+✅ 配置环境变量（如果不存在）  
+✅ 在 3 个新终端窗口中启动所有服务
+
+### 启动后的服务
+
+启动脚本会自动打开 3 个新窗口（终端/命令行）：
+
+1. **小红书 MCP 服务** - 端口 18060
+   - 用于小红书内容发布
+   - 首次使用需要扫码登录
+
+2. **后端 API 服务** - 端口 8000
+   - FastAPI 服务
+   - API 文档: http://localhost:8000/docs
+
+3. **前端开发服务器** - 端口 5173
+   - Vue 3 应用
+   - 访问: http://localhost:5173
+
+## 📋 环境要求
+
+启动脚本会自动检查以下环境：
+
+- **Python**: 3.9+ (推荐 3.10 或 3.11)
+- **Node.js**: 16+ (推荐 18+)
+- **系统**: macOS / Linux / Windows 10/11
+
+如果环境不满足，脚本会提示安装方法。
+
+**注意**: 
+- macOS 支持 Intel 和 Apple Silicon (M1/M2/M3)
+- Windows 脚本支持 Node.js 版本管理工具（fnm、nvm-windows）
+
+## 🔧 首次使用配置
+
+### 1. 配置 API Keys（可选）
+
+启动后访问 http://localhost:5173，进入"设置"页面：
+
+- 添加至少一个 LLM 提供商的 API Key
+- 支持：Moonshot、DeepSeek、Doubao、Gemini、Zhipu
+- 配置火山引擎密钥（用于图片生成）
+
+**注意**: 如果不在前端配置，系统会使用 `.env` 文件中的密钥。
+
+### 2. 登录小红书（首次使用）
+
+如果首次运行时跳过了登录，可以手动登录：
+
+**macOS / Linux:**
+```bash
+# Apple Silicon (M1/M2/M3)
+cd external/XHS-MCP/xiaohongshu-mcp-darwin-arm64
+./xiaohongshu-login-darwin-arm64
+
+# Intel 芯片
+cd external/XHS-MCP/xiaohongshu-mcp-darwin-amd64
+./xiaohongshu-login-darwin-amd64
+```
+
+**Windows:**
+```cmd
+# 进入 MCP 目录
+cd external\XHS-MCP\xiaohongshu-mcp-windows-amd64
+
+# 运行登录程序
+xiaohongshu-login-windows-amd64.exe
+```
+
+登录后重启 MCP 服务窗口即可。
+
+## 🛠️ 手动启动（高级用户）
+
+如果需要单独启动某个服务：
+
+**macOS / Linux:**
+```bash
+./scripts/start-xhs-mcp.sh      # 小红书 MCP
+./scripts/start-backend.sh      # 后端服务
+./scripts/start-frontend.sh     # 前端服务
+```
+
+**Windows:**
+```cmd
+scripts\start-xhs-mcp.bat      # 小红书 MCP
+scripts\start-backend.bat      # 后端服务
+scripts\start-frontend.bat     # 前端服务
+```
+
+## ❓ 常见问题
+
+### Q: 双击启动文件没反应？
+
+**macOS:**
+- 右键点击 `start.command` → 选择"打开" → 在弹出的对话框中点击"打开"
+- macOS 首次运行未签名的脚本需要此操作
+
+**Windows:**
+- 右键点击 `start.bat` → 选择"以管理员身份运行"
+- 或在命令行中运行查看错误信息
+
+### Q: 提示 Python 或 Node.js 未安装/版本过低？
+
+**macOS / Linux:**
+```bash
+# 使用 Homebrew 安装
+brew install python@3.11
+brew install node
+```
+
+**Windows:**
+1. 下载并安装 Python: https://www.python.org/downloads/
+   - 安装时勾选 "Add Python to PATH"
+2. 下载并安装 Node.js: https://nodejs.org/
+   - 推荐下载 LTS 版本
+   - 或使用版本管理工具：
+     - fnm: `winget install Schniz.fnm` 然后 `fnm install --lts`
+     - nvm-windows: https://github.com/coreybutler/nvm-windows
+
+### Q: 依赖安装失败？
+
+**macOS / Linux:**
+```bash
+# 清理缓存后重新运行
+rm -rf .venv node_modules
+./start.sh
+```
+
+**Windows:**
+```cmd
+REM 清理缓存后重新运行
+rmdir /s /q .venv
+rmdir /s /q node_modules
+start.bat
+```
+
+### Q: 小红书 MCP 服务连接失败？
+A: 
+1. 检查 MCP 服务窗口是否正常运行
+2. 确认已完成小红书登录
+3. 验证服务: 
+   - macOS/Linux: `curl http://localhost:18060/mcp`
+   - Windows: 在浏览器访问 http://localhost:18060/mcp
+
+### Q: 端口被占用？
+
+**macOS / Linux:**
+```bash
+# 查看端口占用
+lsof -i :8000
+lsof -i :5173
+lsof -i :18060
+
+# 关闭进程
+kill -9 <PID>
+```
+
+**Windows:**
+```cmd
+REM 查看端口占用
+netstat -ano | findstr :8000
+netstat -ano | findstr :5173
+netstat -ano | findstr :18060
+
+REM 关闭进程（将 <PID> 替换为实际进程 ID）
+taskkill /F /PID <PID>
+```
+
+### Q: 如何停止所有服务？
+A: 在每个窗口中按 `Ctrl+C`，或直接关闭窗口。
+
+### Q: Python 虚拟环境激活失败？（Windows）
+A: 如果遇到执行策略错误，以管理员身份运行 PowerShell：
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+### Q: 脚本无法执行？（macOS/Linux）
+A: 添加执行权限：
+```bash
+chmod +x start.sh start.command
+chmod +x scripts/*.sh
+```
+
+## 📁 脚本文件说明
+
+```
+# macOS / Linux
+start.sh                    # 主启动脚本
+start.command               # macOS 双击启动入口
+scripts/
+  ├── start-xhs-mcp.sh     # 小红书 MCP 服务
+  ├── start-backend.sh     # 后端服务
+  └── start-frontend.sh    # 前端服务
+
+# Windows
+start.bat                   # 主启动脚本
+scripts/
+  ├── start-xhs-mcp.bat    # 小红书 MCP 服务
+  ├── start-backend.bat    # 后端服务
+  └── start-frontend.bat   # 前端服务
+```
+
+## 🎯 下一步
+
+启动成功后：
+
+1. 访问 http://localhost:5173
+2. 进入"设置"页面配置 API Keys
+3. 测试小红书 MCP 连接
+4. 在"首页"输入议题开始分析
+5. 查看"热榜页"浏览热点数据
+6. 在"数据页"查看可视化分析
+
+## 📚 更多文档
+
+- [完整 README](../README.md)
+- [启动指南总览](STARTUP_GUIDE.md)
+- [脚本说明文档](../scripts/README.md)
+- [小红书 MCP 设置指南](XHS_SETUP.md)
+- [API 使用文档](../frontend/src/API_USAGE.md)
+- [项目文档](project/)
+
+---
+
+**提示**: 如果遇到问题，请查看各个窗口的日志输出，通常会有详细的错误信息。

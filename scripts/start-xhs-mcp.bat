@@ -17,7 +17,7 @@ echo   小红书 MCP 服务
 echo ================================================
 echo.
 
-set XHS_DIR=XHS-MCP\xiaohongshu-mcp-windows-amd64
+set XHS_DIR=external\XHS-MCP\xiaohongshu-mcp-windows-amd64
 set XHS_MCP=%XHS_DIR%\xiaohongshu-mcp-windows-amd64.exe
 set XHS_LOGIN=%XHS_DIR%\xiaohongshu-login-windows-amd64.exe
 
@@ -50,7 +50,7 @@ if exist "%XHS_DIR%\cookies.json" (
         echo.
         cd "%XHS_DIR%"
         start /wait xiaohongshu-login-windows-amd64.exe
-        cd ..\..
+        cd ..\..\..
         if exist "%XHS_DIR%\cookies.json" (
             echo [SUCCESS] 登录成功 ✓
         ) else (

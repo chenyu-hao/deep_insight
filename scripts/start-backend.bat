@@ -17,7 +17,15 @@ echo ================================================
 echo.
 
 REM 检查虚拟环境
-if not exist ".venv" (
+set VENV_DIR=
+if exist ".venv" (
+    set VENV_DIR=.venv
+) else if exist "..\venv" (
+    set VENV_DIR=..\venv
+) else if exist "..\.venv" (
+    set VENV_DIR=..\.venv
+)
+if "%VENV_DIR%"=="" (
     echo [ERROR] 虚拟环境不存在
     echo 请先运行主启动脚本: start.bat
     pause
@@ -25,7 +33,7 @@ if not exist ".venv" (
 )
 
 echo [INFO] 激活虚拟环境...
-call .venv\Scripts\activate.bat
+call %VENV_DIR%\Scripts\activate.bat
 
 REM 检查环境变量
 if not exist ".env" (

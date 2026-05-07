@@ -9,13 +9,15 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 echo -e "${BLUE}================================================${NC}"
 echo -e "${BLUE}  卡片渲染服务 (Express + Playwright)${NC}"
 echo -e "${BLUE}================================================${NC}"
 echo ""
 
-cd renderer/ || {
-    echo -e "${RED}错误: renderer/ 目录不存在${NC}"
+cd "$SCRIPT_DIR/../frontend/renderer" || {
+    echo -e "${RED}错误: frontend/renderer/ 目录不存在${NC}"
     exit 1
 }
 

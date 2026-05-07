@@ -42,4 +42,4 @@ echo [提示] 按 Ctrl+C 停止服务
 echo.
 
 REM 启动服务
-python -m app.services.opinion_mcp_server
+python -m app.opinion_mcp.server

@@ -55,9 +55,16 @@ echo.
 
 REM 设置虚拟环境
 echo [INFO] 设置 Python 虚拟环境...
-if not exist ".venv" (
+set VENV_DIR=
+if exist ".venv" (
+    set VENV_DIR=.venv
+) else if exist "venv" (
+    set VENV_DIR=venv
+)
+if "%VENV_DIR%"=="" (
     echo [INFO] 创建虚拟环境...
     python -m venv .venv
+    set VENV_DIR=.venv
 )
 echo [SUCCESS] 虚拟环境已就绪 ✓
 echo.
@@ -76,7 +83,7 @@ echo.
 
 REM 安装 Python 依赖
 echo [INFO] 检查 Python 依赖...
-call .venv\Scripts\activate.bat
+call %VENV_DIR%\Scripts\activate.bat
 
 python -c "import fastapi" 2>nul
 if %errorlevel% neq 0 (
@@ -100,9 +107,11 @@ if %errorlevel% neq 0 (
 
 REM 安装 Node.js 依赖
 echo [INFO] 检查 Node.js 依赖...
-if not exist "node_modules" (
+if not exist "frontend\node_modules" (
     echo [INFO] 安装 Node.js 依赖（首次运行可能需要几分钟）...
+    cd frontend
     call npm install
+    cd ..
     echo [SUCCESS] Node.js 依赖安装完成 ✓
 ) else (
     echo [SUCCESS] Node.js 依赖已安装 ✓
@@ -111,7 +120,7 @@ echo.
 
 REM 设置小红书 MCP
 echo [INFO] 检查小红书 MCP 服务...
-set XHS_DIR=XHS-MCP\xiaohongshu-mcp-windows-amd64
+set XHS_DIR=external\XHS-MCP\xiaohongshu-mcp-windows-amd64
 set XHS_MCP=%XHS_DIR%\xiaohongshu-mcp-windows-amd64.exe
 set XHS_LOGIN=%XHS_DIR%\xiaohongshu-login-windows-amd64.exe
 
@@ -156,7 +165,7 @@ if exist "%XHS_DIR%\cookies.json" (
         pause
         cd "%XHS_DIR%"
         xiaohongshu-login-windows-amd64.exe
-        cd ..\..
+        cd ..\..\..
         echo.
         if exist "%XHS_DIR%\cookies.json" (
             echo [SUCCESS] 登录完成，可以使用小红书发布功能 ✓

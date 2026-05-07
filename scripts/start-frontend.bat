@@ -16,6 +16,9 @@ echo   前端开发服务器 (Vue 3 + Vite)
 echo ================================================
 echo.
 
+REM 进入前端目录
+cd /d "%~dp0..\frontend"
+
 REM 检查 node_modules
 if not exist "node_modules" (
     echo [ERROR] node_modules 不存在
